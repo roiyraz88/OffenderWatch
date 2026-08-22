@@ -1,0 +1,8 @@
+automation/ui/node_modules/
+automation/ui/test-results/
+automation/ui/playwright-report/
+automation/ui/results/
+automation/api/__pycache__/
+automation/api/.pytest_cache/
+automation/api/results/
+*.pyc

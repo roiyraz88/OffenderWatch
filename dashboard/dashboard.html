@@ -1,0 +1,552 @@
+<title>OffenderWatch QA Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f2f4fa;
+    --plane: #e7ebf5;
+    --surface: #ffffff;
+    --surface-2: #f3f5fb;
+    --border: #d9deec;
+    --text: #12192c;
+    --text-dim: #57628a;
+    --text-mute: #8791ae;
+    --accent: #0f8f96;
+    --accent-ink: #ffffff;
+    --accent-2: #2a55c9;
+    --good: #0ca30c;
+    --warn: #b9790a;
+    --serious: #c15a2f;
+    --critical: #d03b3b;
+    --good-bg: rgba(12,163,12,0.10);
+    --warn-bg: rgba(185,121,10,0.12);
+    --critical-bg: rgba(208,59,59,0.10);
+    --mute-bg: rgba(87,98,138,0.10);
+    --shadow: 0 1px 2px rgba(18,25,44,0.04), 0 8px 24px -12px rgba(18,25,44,0.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0a0f1c;
+      --plane: #060a14;
+      --surface: #10182c;
+      --surface-2: #141d35;
+      --border: #253055;
+      --text: #eef1fa;
+      --text-dim: #9aa6cc;
+      --text-mute: #6a76a0;
+      --accent: #4dd8de;
+      --accent-ink: #04262a;
+      --accent-2: #7c93ff;
+      --good: #34c759;
+      --warn: #fab219;
+      --serious: #ec835a;
+      --critical: #ff6b6b;
+      --good-bg: rgba(52,199,89,0.14);
+      --warn-bg: rgba(250,178,25,0.14);
+      --critical-bg: rgba(255,107,107,0.14);
+      --mute-bg: rgba(154,166,204,0.10);
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -16px rgba(0,0,0,0.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0a0f1c;
+    --plane: #060a14;
+    --surface: #10182c;
+    --surface-2: #141d35;
+    --border: #253055;
+    --text: #eef1fa;
+    --text-dim: #9aa6cc;
+    --text-mute: #6a76a0;
+    --accent: #4dd8de;
+    --accent-ink: #04262a;
+    --accent-2: #7c93ff;
+    --good: #34c759;
+    --warn: #fab219;
+    --serious: #ec835a;
+    --critical: #ff6b6b;
+    --good-bg: rgba(52,199,89,0.14);
+    --warn-bg: rgba(250,178,25,0.14);
+    --critical-bg: rgba(255,107,107,0.14);
+    --mute-bg: rgba(154,166,204,0.10);
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -16px rgba(0,0,0,0.6);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.45;
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace; }
+  .tab { font-variant-numeric: tabular-nums; }
+
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+  }
+
+  /* ---------- Header ---------- */
+  header.top {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .mark {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(155deg, var(--accent), var(--accent-2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    box-shadow: var(--shadow);
+    flex: none;
+  }
+  .brand h1 { font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .brand .sub { font-size: 12.5px; color: var(--text-dim); margin-top: 1px; }
+  .meta {
+    text-align: right;
+    font-size: 12px;
+    color: var(--text-mute);
+  }
+  .meta a { color: var(--text-dim); }
+  .meta .row { display: flex; gap: 6px; justify-content: flex-end; }
+
+  /* ---------- Verdict banner ---------- */
+  .verdict {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 20px 24px;
+    border-radius: 14px;
+    background: var(--critical-bg);
+    border: 1px solid color-mix(in srgb, var(--critical) 35%, var(--border));
+    margin-bottom: 28px;
+    box-shadow: var(--shadow);
+  }
+  .verdict .badge {
+    flex: none;
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    color: #fff;
+    background: var(--critical);
+    padding: 9px 16px;
+    border-radius: 999px;
+  }
+  .verdict .text { font-size: 14.5px; color: var(--text); }
+  .verdict .text b { font-weight: 700; }
+  .verdict .text .sub { display: block; margin-top: 3px; font-size: 12.5px; color: var(--text-dim); }
+
+  /* ---------- Section titles ---------- */
+  h2.section {
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-mute);
+    font-weight: 600;
+    margin: 0 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2.section::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  section { margin-bottom: 34px; }
+
+  /* ---------- Stat grid ---------- */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+  }
+  .stat-grid.six { grid-template-columns: repeat(6, 1fr); }
+  @media (max-width: 900px) {
+    .stat-grid, .stat-grid.six { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 560px) {
+    .stat-grid, .stat-grid.six { grid-template-columns: repeat(2, 1fr); }
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+  }
+  .stat .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-mute);
+    font-weight: 600;
+  }
+  .stat .value {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 26px;
+    font-weight: 600;
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat .value.good { color: var(--good); }
+  .stat .value.critical { color: var(--critical); }
+  .stat .value.warn { color: var(--warn); }
+  .stat .foot { font-size: 11px; color: var(--text-mute); margin-top: 3px; }
+
+  /* ---------- Two-column layout ---------- */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 18px;
+    align-items: stretch;
+  }
+  @media (max-width: 860px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+  }
+  .card h3 {
+    font-size: 13px;
+    margin: 0 0 14px;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+
+  /* ---------- Bars ---------- */
+  .bar-row { display: grid; grid-template-columns: 90px 1fr 40px; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-row .lbl { font-size: 12.5px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .bar-row .dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+  .bar-track { height: 10px; background: var(--surface-2); border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+  .bar-fill { height: 100%; border-radius: 5px; }
+  .bar-row .n { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+
+  /* ---------- Pills ---------- */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px 3px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
+    line-height: 1.6;
+  }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .pill.pass { background: var(--good-bg); color: var(--good); }
+  .pill.fail { background: var(--critical-bg); color: var(--critical); }
+  .pill.partial { background: var(--warn-bg); color: var(--warn); }
+  .pill.notrun { background: var(--mute-bg); color: var(--text-mute); }
+
+  /* ---------- Requirement coverage table ---------- */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
+  table.cov { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 760px; }
+  table.cov th {
+    text-align: left;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-mute);
+    font-weight: 600;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+    position: sticky; top: 0;
+  }
+  table.cov td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  table.cov tbody tr:last-child td { border-bottom: none; }
+  table.cov tbody tr:hover { background: var(--surface-2); }
+  table.cov td.req { font-family: "IBM Plex Mono", monospace; font-weight: 600; }
+  table.cov td.area { color: var(--text-dim); }
+  table.cov td.bugs { color: var(--text-dim); font-family: "IBM Plex Mono", monospace; font-size: 11.5px; }
+  .layer-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 5px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    margin-right: 4px;
+  }
+  .layer-tag.on { color: var(--accent-ink); background: var(--accent); border-color: transparent; }
+
+  /* ---------- Automation run panel ---------- */
+  .run-list { display: flex; flex-direction: column; gap: 8px; }
+  .run-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; border-radius: 9px; background: var(--surface-2); border: 1px solid var(--border);
+    font-size: 12.5px;
+  }
+  .run-item .name { color: var(--text); font-weight: 500; }
+  .run-item .stats { display: flex; gap: 10px; font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+  .run-item .stats span.p { color: var(--good); }
+  .run-item .stats span.f { color: var(--critical); }
+
+  footer {
+    margin-top: 40px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    font-size: 11.5px;
+    color: var(--text-mute);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .note {
+    font-size: 12px;
+    color: var(--text-dim);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-top: 12px;
+  }
+  .note b { color: var(--text); }
+</style>
+
+<div class="page">
+
+  <header class="top">
+    <div class="brand">
+      <div class="mark">📍</div>
+      <div>
+        <h1>OffenderWatch — QA Dashboard</h1>
+        <div class="sub">Testing-phase status &middot; Monitoring Console (AQApplication/Roie)</div>
+      </div>
+    </div>
+    <div class="meta">
+      <div class="row"><span>Tester</span><span class="mono">Roie</span></div>
+      <div class="row"><span>Phase snapshot</span><span class="mono">23 Aug 2026</span></div>
+      <div class="row"><span>Seed data</span><span class="mono">13 offenders</span></div>
+    </div>
+  </header>
+
+  <div class="verdict">
+    <div class="badge">NO&#8209;GO</div>
+    <div class="text">
+      <b>17 open defects</b> (15 High, 2 Medium) span every requirement area — pagination, validation, trail ordering, edit persistence, and dashboard stats are all confirmed broken at the API layer, not just the UI.
+      <span class="sub">Recommendation: block release until FR-01, FR-03, FR-07, FR-09 and API-02/03/04 defects are fixed and retested.</span>
+    </div>
+  </div>
+
+  <section>
+    <h2 class="section">Test execution status &middot; manual suite</h2>
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="label">Test cases</div>
+        <div class="value tab">50</div>
+        <div class="foot">atomic cases, 16/16 requirements</div>
+      </div>
+      <div class="stat">
+        <div class="label">Executed</div>
+        <div class="value tab">49</div>
+        <div class="foot">98% of suite run</div>
+      </div>
+      <div class="stat">
+        <div class="label">Passed</div>
+        <div class="value good tab">21</div>
+        <div class="foot">42% pass rate</div>
+      </div>
+      <div class="stat">
+        <div class="label">Failed</div>
+        <div class="value critical tab">28</div>
+        <div class="foot">56% of suite</div>
+      </div>
+      <div class="stat">
+        <div class="label">Not run</div>
+        <div class="value warn tab">1</div>
+        <div class="foot">API-01 search — needs a real query string</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Defects by severity <span style="color:var(--text-mute); font-weight:400;">— 17 total, all confirmed &amp; open</span></h3>
+        <div class="bar-row">
+          <div class="lbl"><span class="dot" style="background:var(--critical)"></span>High</div>
+          <div class="bar-track"><div class="bar-fill" style="width:88%; background:var(--critical);"></div></div>
+          <div class="n">15</div>
+        </div>
+        <div class="bar-row">
+          <div class="lbl"><span class="dot" style="background:var(--warn)"></span>Medium</div>
+          <div class="bar-track"><div class="bar-fill" style="width:12%; background:var(--warn);"></div></div>
+          <div class="n">2</div>
+        </div>
+        <div class="bar-row">
+          <div class="lbl"><span class="dot" style="background:var(--good)"></span>Low</div>
+          <div class="bar-track"><div class="bar-fill" style="width:0%; background:var(--good);"></div></div>
+          <div class="n">0</div>
+        </div>
+        <div class="note"><b>Status:</b> 17 Open &middot; 0 Fixed &middot; 0 Retest. Two defects (BUG-016, BUG-017) were found only by automation, not manual testing.</div>
+      </div>
+
+      <div class="card">
+        <h3>Suspected layer <span style="color:var(--text-mute); font-weight:400;">— of the 17 confirmed defects</span></h3>
+        <div class="bar-row">
+          <div class="lbl"><span class="dot" style="background:var(--accent-2)"></span>API / backend</div>
+          <div class="bar-track"><div class="bar-fill" style="width:65%; background:var(--accent-2);"></div></div>
+          <div class="n">11</div>
+        </div>
+        <div class="bar-row">
+          <div class="lbl"><span class="dot" style="background:var(--warn)"></span>Mixed / sync</div>
+          <div class="bar-track"><div class="bar-fill" style="width:24%; background:var(--warn);"></div></div>
+          <div class="n">4</div>
+        </div>
+        <div class="bar-row">
+          <div class="lbl"><span class="dot" style="background:var(--accent)"></span>UI only</div>
+          <div class="bar-track"><div class="bar-fill" style="width:12%; background:var(--accent);"></div></div>
+          <div class="n">2</div>
+        </div>
+        <div class="note">11 of 17 defects reproduce directly against the REST API (curl/Swagger), independent of the UI — e.g. pagination math, search casing, and every FR-03/FR-10 validation rule. 4 involve a UI/backend sync gap (e.g. stats not reflecting deletes); 2 are frontend-only (e.g. BUG-017's PUT payload omits a changed field). See <b>Bug Reports</b> sheet, "Suspected Layer" column, for evidence per bug.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section">Requirement coverage</h2>
+    <div class="table-wrap">
+      <table class="cov">
+        <thead>
+          <tr>
+            <th>Req</th>
+            <th>Area</th>
+            <th>Manual result</th>
+            <th>Automated</th>
+            <th>State</th>
+            <th>Bugs</th>
+          </tr>
+        </thead>
+        <tbody id="cov-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section">Automation</h2>
+    <div class="stat-grid six">
+      <div class="stat">
+        <div class="label">Automated scenarios</div>
+        <div class="value tab">33</div>
+        <div class="foot">of 50 manual cases' scope</div>
+      </div>
+      <div class="stat">
+        <div class="label">UI (Playwright)</div>
+        <div class="value tab">11</div>
+        <div class="foot">2 passed &middot; 9 failed</div>
+      </div>
+      <div class="stat">
+        <div class="label">API (pytest)</div>
+        <div class="value tab">22</div>
+        <div class="foot">5 passed &middot; 17 failed</div>
+      </div>
+      <div class="stat">
+        <div class="label">Latest run — passed</div>
+        <div class="value good tab">7</div>
+        <div class="foot">21% of automated scenarios</div>
+      </div>
+      <div class="stat">
+        <div class="label">Latest run — failed</div>
+        <div class="value critical tab">26</div>
+        <div class="foot">each maps to a bug ID</div>
+      </div>
+      <div class="stat">
+        <div class="label">Automated vs manual</div>
+        <div class="value tab">66%</div>
+        <div class="foot">33 of 50 cases scripted</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <h3>Latest automation run</h3>
+      <div class="run-list">
+        <div class="run-item">
+          <span class="name">UI &middot; <span class="mono">automation/ui</span> &middot; Playwright + Chromium</span>
+          <span class="stats"><span class="p">2 passed</span><span class="f">9 failed</span><span class="mono" style="color:var(--text-mute)">11 total</span></span>
+        </div>
+        <div class="run-item">
+          <span class="name">API &middot; <span class="mono">automation/api</span> &middot; pytest + requests</span>
+          <span class="stats"><span class="p">5 passed</span><span class="f">17 failed</span><span class="mono" style="color:var(--text-mute)">22 total</span></span>
+        </div>
+      </div>
+      <div class="note">Every failing automated test targets PRD-required behavior and is tagged with its Bug ID in the test title (e.g. <span class="mono">[BUG-001]</span>) — a red result there confirms a real defect, not a broken test. See <span class="mono">automation/README.md</span> for the full scenario-to-bug map.</div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Sources: <span class="mono">OffenderWatch_Tests.xlsx</span> (Test Cases Final / Execution Results Final / Bug Reports) + latest <span class="mono">automation/ui</span> and <span class="mono">automation/api</span> runs.</span>
+    <span>Generated 23 Aug 2026</span>
+  </footer>
+</div>
+
+<script>
+  const rows = [
+    ["FR-01", "Offender mgmt", 2, 2, 0, true,  "fail",    ["BUG-001"]],
+    ["FR-02", "Offender mgmt", 3, 1, 0, true,  "fail",    ["BUG-013"]],
+    ["FR-03", "Offender mgmt", 3, 6, 0, true,  "fail",    ["BUG-002","BUG-003","BUG-008","BUG-014"]],
+    ["FR-04", "Offender mgmt", 1, 1, 0, true,  "fail",    ["BUG-010","BUG-017"]],
+    ["FR-05", "Offender mgmt", 2, 1, 0, true,  "fail",    ["BUG-015"]],
+    ["FR-06", "Offender mgmt", 1, 1, 0, false, "fail",    ["BUG-004"]],
+    ["FR-07", "Trail &amp; map", 0, 2, 0, true,  "fail",    ["BUG-005"]],
+    ["FR-08", "Trail &amp; map", 1, 0, 0, false, "pass",    []],
+    ["FR-09", "Trail &amp; map", 1, 3, 0, true,  "fail",    ["BUG-006"]],
+    ["FR-10", "Trail &amp; map", 1, 5, 0, true,  "fail",    ["BUG-007","BUG-009"]],
+    ["FR-11", "Dashboard",     1, 2, 0, true,  "fail",    ["BUG-011","BUG-015"]],
+    ["API-01","REST API",      1, 0, 1, true,  "partial", ["BUG-001","BUG-013"]],
+    ["API-02","REST API",      2, 2, 0, true,  "fail",    ["BUG-012"]],
+    ["API-03","REST API",      0, 3, 0, true,  "fail",    ["BUG-008","BUG-009"]],
+    ["API-04","REST API",      0, 1, 0, true,  "fail",    ["BUG-016"]],
+    ["API-05","REST API",      2, 1, 0, true,  "fail",    ["BUG-011","BUG-015"]],
+  ];
+
+  const stateLabel = { pass: "Pass", fail: "Fail", partial: "Partial" };
+
+  const body = document.getElementById("cov-body");
+  for (const [req, area, p, f, nr, automated, state, bugs] of rows) {
+    const tr = document.createElement("tr");
+
+    const manualBits = [];
+    if (p) manualBits.push(`<span class="pill pass"><span class="dot" style="background:var(--good)"></span>${p} pass</span>`);
+    if (f) manualBits.push(`<span class="pill fail"><span class="dot" style="background:var(--critical)"></span>${f} fail</span>`);
+    if (nr) manualBits.push(`<span class="pill notrun"><span class="dot" style="background:var(--text-mute)"></span>${nr} not run</span>`);
+
+    tr.innerHTML = `
+      <td class="req">${req}</td>
+      <td class="area">${area}</td>
+      <td>${manualBits.join(" ")}</td>
+      <td><span class="layer-tag ${automated ? "on" : ""}">${automated ? "Automated" : "Manual only"}</span></td>
+      <td><span class="pill ${state}"><span class="dot" style="background:var(--${state === "pass" ? "good" : state === "fail" ? "critical" : "warn"})"></span>${stateLabel[state]}</span></td>
+      <td class="bugs">${bugs.length ? bugs.join(", ") : "&mdash;"}</td>
+    `;
+    body.appendChild(tr);
+  }
+</script>
