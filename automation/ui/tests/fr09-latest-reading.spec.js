@@ -9,7 +9,7 @@ const { parseDisplayTimestamp } = require('../pages/helpers');
 test('FR-09 / TC-009A-D — Latest reading matches the most recent trail point [BUG-006]', async ({ page }) => {
   const list = new OffenderListPage(page);
   await list.goto();
-  await list.openOffender('Peretz');
+  await list.openOffender('Mizrahi');
 
   const detail = new OffenderDetailPage(page);
 

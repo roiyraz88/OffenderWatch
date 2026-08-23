@@ -8,7 +8,7 @@ const { parseDisplayTimestamp } = require('../pages/helpers');
 test('FR-07 / TC-007A — trail table is ordered oldest to newest [BUG-005]', async ({ page }) => {
   const list = new OffenderListPage(page);
   await list.goto();
-  await list.openOffender('Peretz');
+  await list.openOffender('Mizrahi');
 
   const detail = new OffenderDetailPage(page);
   const raw = await detail.trailTimestamps();

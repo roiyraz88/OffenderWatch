@@ -41,7 +41,9 @@ class OffenderListPage {
     const row = await this.rowByLastName(lastName);
     await row.click();
     await this.page.waitForSelector('.trail-view');
-    await this.page.waitForSelector('table.trail-grid tbody tr');
+    // Trail rows may legitimately be zero (a freshly created offender), so
+    // wait for the header instead of requiring at least one row to exist.
+    await this.page.waitForSelector('.trail-table-header');
     await this.page.waitForTimeout(500); // let the map/leaflet render settle
   }
 
