@@ -15,6 +15,14 @@ class OffenderListPage {
     // to the site root and drop it, so navigate to '' (relative, keeps path).
     await this.page.goto('');
     await this.page.waitForSelector('table.grid');
+    // The table shell renders before the offenders fetch resolves, so the
+    // pager briefly reads something like "Page 1 of 1 (0 results)". Wait
+    // for the pager to actually report a real, non-zero result count
+    // before letting callers read it.
+    await this.page
+      .locator('.pager span')
+      .filter({ hasText: /\([1-9]\d* results\)/ })
+      .waitFor({ state: 'visible' });
   }
 
   async search(text) {
