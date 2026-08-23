@@ -9,7 +9,7 @@ const { OffenderDetailPage } = require('../pages/OffenderDetailPage');
 test('FR-10 / TC-010E — signal outside 1-5 is rejected without saving a point [BUG-007]', async ({ page }) => {
   const list = new OffenderListPage(page);
   await list.goto();
-  await list.openOffender('Amar');
+  await list.openOffender('Peretz');
 
   const detail = new OffenderDetailPage(page);
   const countBefore = await detail.trailRows.count();
