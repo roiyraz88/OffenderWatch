@@ -45,26 +45,37 @@ test('FR-03 / TC-003B — creation is rejected when Last Name is empty [BUG-002]
   expect(await modal.isOpen(), 'Add Offender modal should remain open after an invalid submit').toBe(true);
 });
 
-test('FR-03 / TC-003D — creation is rejected for a duplicate National ID [BUG-014]', async ({ page }) => {
+test('FR-03 / TC-003D — creation is rejected for a duplicate National ID [BUG-014]', async ({ page, request, baseURL }) => {
   const list = new OffenderListPage(page);
   await list.goto();
 
-  // "305412876" belongs to seeded offender David Cohen.
-  const modal = await list.openAddOffenderModal();
-  await modal.fill({
-    firstName: 'Dup',
-    lastName: 'Licate',
-    nationalId: '305412876',
-    dob: '1990-01-01',
-    riskLevel: 'Low',
-    status: 'Active',
-  });
-  await modal.submit();
-  await page.waitForTimeout(600);
+  // "305412876" belongs to seeded offender David Cohen. This reuses a real
+  // seeded ID (can't be an AUTO-prefixed id like the other tests here), so
+  // if the defect reproduces and an offender IS created, the finally block
+  // below deletes it via the API — cleanup_test_data.py won't catch it.
+  try {
+    const modal = await list.openAddOffenderModal();
+    await modal.fill({
+      firstName: 'Dup',
+      lastName: 'Licate',
+      nationalId: '305412876',
+      dob: '1990-01-01',
+      riskLevel: 'Low',
+      status: 'Active',
+    });
+    await modal.submit();
+    await page.waitForTimeout(600);
 
-  await list.search('Licate');
-  const rows = await list.lastNamesOnPage();
-  expect(rows, 'an offender with a duplicate National ID must not be persisted').not.toContain('Licate');
+    await list.search('Licate');
+    const rows = await list.lastNamesOnPage();
+    expect(rows, 'an offender with a duplicate National ID must not be persisted').not.toContain('Licate');
+  } finally {
+    const res = await request.get(`${baseURL}/api/offenders`, { params: { search: 'Licate', pageSize: 50 } });
+    const { items } = await res.json();
+    for (const o of items) {
+      await request.delete(`${baseURL}/api/offenders/${o.id}`);
+    }
+  }
 });
 
 test('FR-03 / TC-003E — creation is rejected for a future Date of Birth [BUG-003]', async ({ page }) => {
