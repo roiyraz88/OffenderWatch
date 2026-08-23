@@ -7,10 +7,10 @@ test('FR-02 / TC-002C — search returns same results regardless of letter casin
   const list = new OffenderListPage(page);
   await list.goto();
 
-  await list.search('coh'); // lowercase substring of "Cohen"
+  await list.search('ra'); // lowercase substring of "Raz"
   const lowerResults = await list.lastNamesOnPage();
 
-  await list.search('Coh'); // capitalized substring
+  await list.search('Ra'); // capitalized substring
   const capResults = await list.lastNamesOnPage();
 
   expect(lowerResults, 'lowercase search should return the same offender as the mixed-case search').toEqual(capResults);
