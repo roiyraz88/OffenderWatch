@@ -41,9 +41,9 @@ for every failure).
   for the offender list panel and the trail/detail panel.
 - `pages/helpers.js` — parses the app's `DD/MM/YYYY, HH:mm` display format.
 - `tests/*.spec.js` — one file per requirement area, named `frNN-*.spec.js`.
-- `playwright.config.js` — `baseURL` points at the app; one worker, one
-  retry (the shared demo environment is occasionally slow, not because
-  tests are flaky by design).
+- `playwright.config.js` — `baseURL` points at the app; one worker, no
+  retries (a red result should mean "defect confirmed," not "retry until
+  green" — retrying would hide that signal).
 
 ### Scenarios (11 across 8 files)
 

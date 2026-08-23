@@ -5,7 +5,7 @@ module.exports = defineConfig({
   testDir: './tests',
   fullyParallel: false,
   workers: 1,
-  retries: 1,
+  retries: 0,
   timeout: 45000,
   reporter: [
     ['list'],
