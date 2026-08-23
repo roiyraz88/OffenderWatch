@@ -3,6 +3,18 @@ consistent paging metadata."""
 from conftest import ceil_div
 
 
+def _pick_live_offender(session, base_url):
+    """Picks a real, currently-existing offender to search for, instead of
+    hardcoding a seeded name — some seeded offenders (e.g. Cohen, id=1) were
+    permanently corrupted earlier by BUG-007's app-crashing invalid-signal
+    input, so a hardcoded name can silently start failing for reasons
+    unrelated to what this test actually checks.
+    """
+    items = session.get(f"{base_url}/api/offenders", params={"pageSize": 1}).json()["items"]
+    assert items, "expected at least one offender to exist"
+    return items[0]
+
+
 def test_paging_metadata_is_consistent(session, base_url):
     """Known defect: BUG-001 — totalPages is computed with floor division
     instead of ceiling division, so it under-reports by one whenever total
@@ -30,12 +42,15 @@ def test_paging_metadata_is_consistent(session, base_url):
 
 
 def test_search_is_partial_match(session, base_url):
-    resp = session.get(f"{base_url}/api/offenders", params={"search": "Coh", "pageSize": 25})
+    offender = _pick_live_offender(session, base_url)
+    substring = offender["lastName"][: max(3, len(offender["lastName"]) // 2)]
+
+    resp = session.get(f"{base_url}/api/offenders", params={"search": substring, "pageSize": 25})
     assert resp.status_code == 200
     body = resp.json()
 
-    assert body["total"] >= 1
-    assert any(o["lastName"] == "Cohen" for o in body["items"])
+    assert body["total"] >= 1, f"searching for '{substring}' (from {offender['lastName']}) found nothing"
+    assert any(o["id"] == offender["id"] for o in body["items"])
 
 
 def test_search_is_case_insensitive(session, base_url):
@@ -43,10 +58,14 @@ def test_search_is_case_insensitive(session, base_url):
     Known defect: BUG-013. Verified directly at the API: a lowercase
     substring returns 0 results while the same substring capitalized matches.
     """
-    lower = session.get(f"{base_url}/api/offenders", params={"search": "coh", "pageSize": 25}).json()
-    upper = session.get(f"{base_url}/api/offenders", params={"search": "COH", "pageSize": 25}).json()
-    mixed = session.get(f"{base_url}/api/offenders", params={"search": "Coh", "pageSize": 25}).json()
+    offender = _pick_live_offender(session, base_url)
+    substring = offender["lastName"][: max(3, len(offender["lastName"]) // 2)]
 
+    lower = session.get(f"{base_url}/api/offenders", params={"search": substring.lower(), "pageSize": 25}).json()
+    upper = session.get(f"{base_url}/api/offenders", params={"search": substring.upper(), "pageSize": 25}).json()
+    mixed = session.get(f"{base_url}/api/offenders", params={"search": substring, "pageSize": 25}).json()
+
+    assert mixed["total"] >= 1, f"sanity check failed: searching '{substring}' itself found nothing"
     assert lower["total"] == mixed["total"], (
         f"case-insensitive search should return equal results regardless of casing; "
         f"got lower={lower['total']} vs mixed={mixed['total']}"

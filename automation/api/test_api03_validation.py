@@ -12,6 +12,28 @@ def _cleanup(session, base_url, offender_id):
         session.delete(f"{base_url}/api/offenders/{offender_id}")
 
 
+@pytest.fixture
+def disposable_offender(session, base_url, unique_national_id):
+    """A throwaway offender for tests that must POST a location, so a
+    signal/battery/coordinate value outside the valid range never pollutes a
+    shared seeded offender (this is exactly what corrupted seed offender
+    id=1 "Cohen" earlier — see BUG-007's evidence in the bug report).
+    """
+    created = session.post(
+        f"{base_url}/api/offenders",
+        json={
+            "firstName": "Disposable",
+            "lastName": f"Loc{unique_national_id}",
+            "nationalId": unique_national_id,
+            "dateOfBirth": "1990-01-01",
+            "riskLevel": "Low",
+            "status": "Active",
+        },
+    ).json()
+    yield created["id"]
+    session.delete(f"{base_url}/api/offenders/{created['id']}")
+
+
 @pytest.mark.known_bug
 def test_create_offender_rejects_empty_last_name(session, base_url, unique_national_id):
     """Known defect: BUG-002 — required-field validation missing (confirmed at API layer)."""
@@ -109,7 +131,7 @@ def test_create_offender_rejects_unsupported_risk_level(session, base_url, uniqu
         ("lon", -200),
     ],
 )
-def test_add_location_rejects_out_of_range_values(session, base_url, field, value):
+def test_add_location_rejects_out_of_range_values(session, base_url, field, value, disposable_offender):
     """Known defect: BUG-009 — location validation is not enforced (confirmed at API layer)."""
     payload = {
         "timestamp": "2026-01-01T00:00:00Z",
@@ -121,7 +143,7 @@ def test_add_location_rejects_out_of_range_values(session, base_url, field, valu
     }
     payload[field] = value
 
-    resp = session.post(f"{base_url}/api/offenders/1/locations", json=payload)
+    resp = session.post(f"{base_url}/api/offenders/{disposable_offender}/locations", json=payload)
     assert resp.status_code == 400, (
         f"expected 400 for {field}={value}, got {resp.status_code}: {resp.text[:200]}"
     )
