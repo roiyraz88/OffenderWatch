@@ -707,6 +707,13 @@
         <tbody id="cov-body"></tbody>
       </table>
     </div>
+    <div class="note">
+      Rows don't sum to the 32-case total above by design: 2 test cases
+      validate the same rule at both the UI/FR layer and directly at the API
+      (API-03), so they're counted under both their FR row and the API-03
+      row — e.g. the FR-03 and FR-10 fail counts each include one case that
+      also appears in API-03's fail count.
+    </div>
   </section>
 
   <section>
