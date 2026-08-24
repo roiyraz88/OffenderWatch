@@ -55,7 +55,7 @@ for every failure).
 | `fr04-edit-persistence.spec.js` | FR-04 | **Fails** — [BUG-017] Risk Level edit dropped from PUT payload |
 | `fr07-trail-chronological.spec.js` | FR-07 | **Fails** — [BUG-005] trail table not chronological |
 | `fr09-latest-reading.spec.js` | FR-09 | **Fails** — [BUG-006] Latest reading not from newest point |
-| `fr10-location-validation.spec.js` | FR-10 | **Fails** — [BUG-007]/[BUG-009] invalid location accepted |
+| `fr10-location-validation.spec.js` | FR-10 | **Fails** — [BUG-007] value accepted without validation, [BUG-018] app crashes |
 | `fr11-dashboard-stats.spec.js` | FR-11 | Currently **passes** on live data — see note below |
 
 **Note on FR-11:** the original manual testing (Excel, BUG-011) observed UI
@@ -89,7 +89,7 @@ pytest -v --junitxml=results/api-results.xml   # machine-readable, for the dashb
   if you want to tidy the shared demo environment; **not** required for the
   tests to pass.
 
-### Scenarios (16 across 5 files, `test_api03` parametrized ×7)
+### Scenarios (22 across 5 files, `test_add_location_rejects_out_of_range_values` parametrized ×7)
 
 | File | Requirement | Expected outcome |
 |---|---|---|
@@ -123,7 +123,7 @@ further evidence of the validation defects, not a flaw in the tests. Run
 ## Mapping to the assignment deliverables
 
 - **Part 3 minimums** (5 UI + 5 API scenarios): met — 11 UI scenarios across
-  8 files, 16 API scenarios (7 of them parametrized cases of one test)
+  8 files, 22 API scenarios (7 of them parametrized cases of one test)
   across 5 files.
 - **Assertions against PRD behavior**: every assertion message states the
   PRD-required behavior, not just the raw value comparison.
