@@ -4,16 +4,17 @@ const { OffenderDetailPage } = require('../pages/OffenderDetailPage');
 
 // FR-10: signal must be within 1-5. Invalid values must be rejected with a
 // clear message and nothing saved.
-// Known defect: BUG-007 — an invalid signal value doesn't just fail to
-// validate, it crashes the whole app (blank page, unhandled RangeError)
-// for as long as the offender's poisoned trail data persists — confirmed
-// via console errors and by GET /api/offenders/{id} going empty afterward
-// for offenders this was run against directly (id=1, id=10 earlier today).
+// Known defects: BUG-007 (the value is accepted without validation) and
+// BUG-018 (the specific out-of-range signal crashes the whole app — blank
+// page, unhandled RangeError, for as long as the offender's poisoned trail
+// data persists). Confirmed via console errors and by GET
+// /api/offenders/{id} going empty afterward for offenders this was run
+// against directly (id=1, id=10 earlier today).
 //
 // Because that crash is destructive to whichever offender it's run
 // against, this test creates and deletes its own disposable offender via
 // the API rather than reusing a shared/seeded one.
-test('FR-10 / TC-010E — signal outside 1-5 is rejected without saving a point [BUG-007]', async ({
+test('FR-10 / TC-010E — signal outside 1-5 is rejected without saving a point [BUG-007 / BUG-018]', async ({
   page,
   request,
   baseURL,

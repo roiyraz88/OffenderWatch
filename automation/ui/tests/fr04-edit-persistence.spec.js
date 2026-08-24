@@ -6,7 +6,7 @@ const { OffenderListPage } = require('../pages/OffenderListPage');
 // Known defect: BUG-017 — the Edit form's PUT payload omits riskLevel
 // entirely (confirmed via network capture), so a Risk Level change is
 // silently dropped even though the modal shows the new value pre-submit.
-test('FR-04 / TC-004A — editing Risk Level only leaves other fields unchanged [BUG-017]', async ({ page }) => {
+test('FR-04 / TC-004B — editing Risk Level only leaves other fields unchanged [BUG-017]', async ({ page }) => {
   const list = new OffenderListPage(page);
   await list.goto();
 
