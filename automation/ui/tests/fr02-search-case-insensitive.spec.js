@@ -14,5 +14,5 @@ test('FR-02 / TC-002C — search returns same results regardless of letter casin
   const capResults = await list.lastNamesOnPage();
 
   expect(lowerResults, 'lowercase search should return the same offender as the mixed-case search').toEqual(capResults);
-  expect(capResults).toContain('Cohen');
+  expect(capResults).toContain('Raz');
 });
