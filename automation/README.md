@@ -27,6 +27,12 @@ unset, both suites behave exactly as they did before Step 6, evidence
 capture is simply skipped. See `test-management/README.md`'s Evidence
 section for the full protocol.
 
+Both suites also report real, explicitly-owned test data they create
+(Part 5 / Step 7 / TM-06) via one more `OW_EVENT|` line
+(`test_data_created`) — never inferred from the `AUTO` National ID
+convention, only ever from the target app's own confirmed create response.
+See `test-management/README.md`'s Test Data Lifecycle section.
+
 Every automated scenario traces back to a PRD requirement ID (FR-xx /
 API-xx) and, where it documents a known defect, to a Bug ID from
 `OffenderWatch_Tests.xlsx` (sheet **Bug Reports**). **A red test here is not
@@ -75,7 +81,18 @@ for every failure).
 - `reporters/ow-event-reporter.js` — Part 5 integration reporter, added
   alongside the list/HTML/JSON reporters; prints `OW_EVENT|{json}` lines.
   Also writes each scenario's execution log, screenshot, and (for failures)
-  trace as evidence when `OFFENDERWATCH_ARTIFACT_DIR` is set (Step 6).
+  trace as evidence when `OFFENDERWATCH_ARTIFACT_DIR` is set (Step 6), and
+  reads back `test_data_created` registrations attached via
+  `reporters/test-data-capture.js` (Step 7).
+- `reporters/test-data-capture.js` — Part 5 (Step 7 / TM-06) explicit
+  test-data-creation registration. A Reporter runs in a different process
+  than the test code, so — unlike pytest's shared-session hook — there is
+  no central interception point available without touching spec files;
+  `registerOffenderCreated()` is called from exactly two spec files
+  (`fr03-create-validation.spec.js`, `fr10-location-validation.spec.js`),
+  at their pre-existing "confirmed real created items" points, via
+  Playwright's own `testInfo.attach()` worker→reporter channel. No
+  assertion or test semantics changed.
 
 ### Scenarios (11 across 8 files)
 
@@ -128,6 +145,11 @@ pytest -v --junitxml=results/api-results.xml   # machine-readable, for the dashb
   capture, shared by `conftest.py` and `ow_event_reporter.py`; redacts
   sensitive headers (Authorization/Cookie/tokens) before anything is
   written. No test file references it.
+- `test_data_capture.py` — Part 5 (Step 7 / TM-06) centralized, explicit
+  test-data-creation tracking, also wired through `conftest.py`'s shared
+  session. Detects only a real 2xx response from a real creation endpoint
+  — never scans the app, never consults the `AUTO` convention. No test
+  file references it.
 - `test_api01_paging_search.py` … `test_api05_stats.py` — one file per
   API-xx requirement.
 - `cleanup_test_data.py` — deletes every offender whose National ID starts

@@ -6,6 +6,7 @@ import pytest
 import requests
 
 import evidence_capture
+import test_data_capture
 
 # Part 5 (Step 4 / TM-02) injects the target via OFFENDERWATCH_BASE_URL so
 # the orchestrator can run this suite against any configured Environment's
@@ -42,6 +43,10 @@ def session():
     # test needing to change (6.16). evidence_capture.begin_scenario(), called
     # per test below, keeps captures scoped to the scenario that produced them.
     s.hooks["response"].append(evidence_capture.record)
+    # Part 5 (Step 7 / TM-06) — same centralized interception point, a
+    # second independent observer with its own concern (what was created,
+    # not what evidence to keep).
+    s.hooks["response"].append(test_data_capture.record)
     yield s
     s.close()
 
@@ -49,6 +54,7 @@ def session():
 @pytest.hookimpl
 def pytest_runtest_setup(item):
     evidence_capture.begin_scenario(item.nodeid)
+    test_data_capture.begin_scenario(item.nodeid)
 
 
 @pytest.fixture

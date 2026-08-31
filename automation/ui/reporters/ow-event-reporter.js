@@ -8,6 +8,7 @@
 // playwright.config.js; it doesn't replace or change them.
 const fs = require('fs');
 const path = require('path');
+const { ATTACHMENT_NAME: TEST_DATA_ATTACHMENT_NAME } = require('./test-data-capture');
 
 // Part 5 (Step 6 / TM-08) — where the orchestrator told us to write this
 // run's evidence. Optional: unset when this suite is run by hand outside
@@ -96,6 +97,30 @@ class OwEventReporter {
     });
 
     this.writeEvidence(meta.externalId, test, result, status, failureMessage, stackTrace);
+    this.emitTestDataCreated(meta.externalId, result);
+  }
+
+  emitTestDataCreated(scenarioExternalId, result) {
+    // Part 5 (Step 7 / TM-06) — explicit ownership only: reads back exactly
+    // what the spec itself registered via testInfo.attach() at its actual
+    // successful-creation point (test-data-capture.js). Emitted regardless
+    // of pass/fail status, same as the API side.
+    for (const attachment of result.attachments || []) {
+      if (attachment.name !== TEST_DATA_ATTACHMENT_NAME || !attachment.body) continue;
+      let payload;
+      try {
+        payload = JSON.parse(attachment.body.toString('utf-8'));
+      } catch {
+        continue;
+      }
+      this.emit({
+        eventType: 'test_data_created',
+        externalId: scenarioExternalId,
+        entityType: payload.entityType,
+        entityExternalId: payload.entityExternalId,
+        entityIdentifier: payload.entityIdentifier,
+      });
+    }
   }
 
   emitArtifact(externalId, artifactType, absolutePath, contentType) {

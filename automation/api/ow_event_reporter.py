@@ -17,6 +17,7 @@ import sys
 from datetime import datetime, timezone
 
 import evidence_capture
+import test_data_capture
 
 # Matches "BUG-001", or "BUG-007 / BUG-018" style combined tags, wherever
 # they appear in a test's own docstring or its module's docstring — this
@@ -178,6 +179,22 @@ def _finish(nodeid, status, duration_seconds, longrepr, report):
     )
 
     _write_evidence(nodeid, _external_id(nodeid), status, duration_seconds, failure_message, stack_trace, report)
+
+    # Part 5 (Step 7 / TM-06) — explicit ownership only: emitted only for
+    # entities the target app's own response actually confirmed creating
+    # (test_data_capture.py), regardless of this scenario's pass/fail
+    # status — a defect-confirming "should have been rejected but wasn't"
+    # failure is exactly the case that most needs tracking.
+    for created in test_data_capture.take_created_for(nodeid):
+        _emit(
+            {
+                "eventType": "test_data_created",
+                "externalId": _external_id(nodeid),
+                "entityType": created["entityType"],
+                "entityExternalId": created["entityExternalId"],
+                "entityIdentifier": created["entityIdentifier"],
+            }
+        )
 
 
 def pytest_runtest_logreport(report):

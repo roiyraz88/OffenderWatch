@@ -45,23 +45,28 @@ meaning.
 # 3. Part 5 Technology Stack
 
 Backend:
+
 - ASP.NET Core Web API
 - .NET 8+
 - C#
 
 Frontend:
+
 - React
 - Vite
 - TypeScript
 
 Database:
+
 - SQLite
 - Entity Framework Core
 
 Real-time:
+
 - SignalR
 
 Automation:
+
 - Existing Playwright and pytest suites
 
 ---
@@ -73,22 +78,22 @@ Chosen integration model: ORCHESTRATED.
 High-level flow:
 
 React
-  |
-  v
+|
+v
 ASP.NET Core API
-  |
-  +---- SQLite
-  |
-  +---- Test Run Orchestrator
-           |
-           +---- Playwright
-           |
-           +---- pytest
-  |
-  +---- SignalR
-           |
-           v
-         React
+|
++---- SQLite
+|
++---- Test Run Orchestrator
+|
++---- Playwright
+|
++---- pytest
+|
++---- SignalR
+|
+v
+React
 
 The ASP.NET Core API will own the run lifecycle.
 
@@ -127,21 +132,21 @@ Do not copy hard-coded statistics from the old dashboard.
 
 test-management/
 ├── server/
-│   ├── Controllers/
-│   ├── Data/
-│   ├── Models/
-│   ├── DTOs/
-│   ├── Services/
-│   ├── Hubs/
-│   └── Migrations/
+│ ├── Controllers/
+│ ├── Data/
+│ ├── Models/
+│ ├── DTOs/
+│ ├── Services/
+│ ├── Hubs/
+│ └── Migrations/
 │
 ├── client/
-│   └── src/
-│       ├── api/
-│       ├── components/
-│       ├── pages/
-│       ├── hooks/
-│       └── types/
+│ └── src/
+│ ├── api/
+│ ├── components/
+│ ├── pages/
+│ ├── hooks/
+│ └── types/
 │
 ├── data/
 ├── artifacts/
@@ -151,16 +156,16 @@ test-management/
 
 # 7. Requirement Mapping
 
-| Requirement | Description | Status |
-|---|---|---|
-| TM-01 | Environment configuration | DONE |
-| TM-02 | Run execution & management | DONE |
-| TM-03 | Real-time progress | DONE |
-| TM-04 | Test history | DONE |
-| TM-05 | Persistence | Planned |
-| TM-06 | Test data lifecycle | Planned |
-| TM-07 | Summary dashboard | Planned |
-| TM-08 | Evidence capture | DONE |
+| Requirement | Description                | Status  |
+| ----------- | -------------------------- | ------- |
+| TM-01       | Environment configuration  | DONE    |
+| TM-02       | Run execution & management | DONE    |
+| TM-03       | Real-time progress         | DONE    |
+| TM-04       | Test history               | DONE    |
+| TM-05       | Persistence                | Planned |
+| TM-06       | Test data lifecycle        | DONE    |
+| TM-07       | Summary dashboard          | Planned |
+| TM-08       | Evidence capture           | DONE    |
 
 Status must only be changed when the requirement actually works.
 
@@ -175,7 +180,7 @@ Status must only be changed when the requirement actually works.
 Created:
 
 - ASP.NET Core server (`test-management/server`, `dotnet new webapi
-  --use-controllers`, .NET 8) with the planned folder layout (`Controllers/`,
+--use-controllers`, .NET 8) with the planned folder layout (`Controllers/`,
   `Data/`, `Models/`, `DTOs/`, `Services/`, `Hubs/`, `Migrations/` — the
   latter five are empty placeholders (`.gitkeep`), populated starting Step 2)
 - React/Vite/TypeScript client (`test-management/client`,
@@ -217,7 +222,7 @@ Verified:
   clean, no type errors.
 - Runtime smoke test: `dotnet run` (server, `http://localhost:5174`) +
   `npm run dev` (client, `http://localhost:5173`) both started; `GET
-  /api/health` returned 200 and `/swagger/index.html` returned 200.
+/api/health` returned 200 and `/swagger/index.html` returned 200.
 - `.gitignore` updated at the repo root for `test-management/server/bin`,
   `.../obj`, `test-management/client/node_modules`, `.../dist`, and
   `.../.env.local` — the eventual SQLite DB file under
@@ -284,7 +289,7 @@ Files added:
     the Step 7 cleanup queries ("everything this run created that's still
     Active" / "is this app entity already tracked").
 - `Program.cs` — registered `AddDbContext<TestManagementDbContext>`. The
-  connection-string *pattern* still comes from `appsettings.json`
+  connection-string _pattern_ still comes from `appsettings.json`
   (`ConnectionStrings:Default`, unchanged since Step 1:
   `Data Source=../data/testmanagement.db`); what's resolved in code is
   making a relative `DataSource` absolute against
@@ -578,9 +583,9 @@ Do NOT store screenshots or other large binary evidence as SQLite BLOBs.
 The future artifact structure should follow the general pattern:
 
 artifacts/
-  {runId}/
-    {scenarioResultId}/
-      ...
+{runId}/
+{scenarioResultId}/
+...
 
 Do not implement artifact writing or serving in Step 2.
 
@@ -777,14 +782,14 @@ At the end of Step 2 the project must have a real persistent schema
 supporting:
 
 Environment
-    |
-    +-- TestRun
-           |
-           +-- ScenarioResult -- TestCase
-           |       |
-           |       +-- EvidenceArtifact
-           |
-           +-- TestDataRecord
+|
++-- TestRun
+|
++-- ScenarioResult -- TestCase
+| |
+| +-- EvidenceArtifact
+|
++-- TestDataRecord
 
 No functional UI or business API for these entities is required yet.
 
@@ -939,7 +944,7 @@ Verified — Frontend (3.12 items 3–6):
   property, which this project's `erasableSyntaxOnly` tsconfig setting
   rejects — rewritten as a plain field assignment.)
 - Ran the API (`dotnet run`, `:5174`) and the Vite dev server (`npm run
-  dev`, `:5173`) together and drove the real page in a real Chromium
+dev`, `:5173`) together and drove the real page in a real Chromium
   browser (Playwright, reusing the Part 3 UI suite's existing install —
   the driver script was a throwaway, deleted after, not part of any
   deliverable):
@@ -948,15 +953,15 @@ Verified — Frontend (3.12 items 3–6):
     not just the API).
   - Add "Staging" → 2 rows.
   - Attempt to add "staging" (duplicate, different case) → form stays
-    open, shows the server's own message: *"An environment named 'staging'
-    already exists."*
+    open, shows the server's own message: _"An environment named 'staging'
+    already exists."_
   - Click **Set default** on Staging → Staging gets the badge, Dev loses
     it.
   - Edit "Dev" → "Dev Renamed" → table updates.
   - **Reload the browser page** → both rows still present, Staging still
     shows Default — confirms persistence survives a refresh (3.12 item 6).
   - Click **Delete** on "Dev Renamed" → native confirm dialog reads
-    exactly *"Delete environment 'Dev Renamed'?"*, accepted → row count
+    exactly _"Delete environment 'Dev Renamed'?"_, accepted → row count
     drops to 1.
 - Environment/Runs/Tests/Test-data nav and the dashboard health indicator
   from Step 1 were not touched — Runs/Tests/Test-data pages remain
@@ -988,17 +993,17 @@ through the React UI.
 Flow:
 
 React
-  |
-  v
+|
+v
 EnvironmentController
-  |
-  v
+|
+v
 EnvironmentService
-  |
-  v
+|
+v
 TestManagementDbContext
-  |
-  v
+|
+v
 SQLite
 
 This step implements Environment management only.
@@ -1217,11 +1222,12 @@ Example concept:
 
 Environments
 
---------------------------------------------------
-Name       Base URL                    Default
---------------------------------------------------
-Demo       https://example.com/demo    Default
-Staging    https://example.com/stg
+---
+
+## Name Base URL Default
+
+Demo https://example.com/demo Default
+Staging https://example.com/stg
 
 Actions:
 Edit | Delete | Set Default
@@ -1459,6 +1465,7 @@ starting).
 ### Files added/changed
 
 **automation/ (minimal, integration-only — no test/assertion changes):**
+
 - `automation/api/conftest.py` — `base_url` now reads
   `OFFENDERWATCH_BASE_URL`, raises immediately at collection time with no
   fallback if unset; auto-loads the new reporter via `pytest_plugins`.
@@ -1483,6 +1490,7 @@ starting).
   files in both suites' "Structure" sections.
 
 **test-management/server/:**
+
 - `Services/RunnerOptions.cs` — `appsettings.json`'s new `Runner` section
   bound to a POCO; every path relative, resolved against
   `ContentRootPath` at runtime, never a hard-coded absolute path in code.
@@ -1521,7 +1529,7 @@ starting).
 - `Services/IRunService.cs`/`RunService.cs` — the HTTP-facing half:
   `CreateAsync` validates the Environment exists (404 if not), snapshots
   its name/URL onto the new `TestRun`, registers a cancellation token
-  *before* enqueuing (so a Stop racing in immediately after Create always
+  _before_ enqueuing (so a Stop racing in immediately after Create always
   finds a live token), and returns fast. `StopAsync` rejects an
   already-finished run with 409, flips a still-`Queued` run directly to
   `Stopped`, and otherwise just signals cancellation — the orchestrator
@@ -1537,6 +1545,7 @@ starting).
 - `appsettings.json` — the new `Runner` config section (4.15).
 
 **test-management/client/:**
+
 - `types/run.ts`, `api/runs.ts` — typed API layer, same pattern as
   `environments.ts` from Step 3.
 - `pages/RunsPage.tsx` (replaces the Step-1 placeholder) — real runs table
@@ -1556,6 +1565,7 @@ starting).
   run-meta `<dl>`, failure-row styling.
 
 **test-management/server.Tests/ (4.25 — 21 new tests, 34 total with Step 3's):**
+
 - `TestDatabaseFixture.cs` — extracted the Step-3 throwaway-SQLite-file
   pattern into a shared base class.
 - `ScenarioClassifierTests.cs` (6) — every rule in 4.11 directly.
@@ -1590,18 +1600,19 @@ starting).
   Fixed with `return StatusCode(202, created);`. Caught immediately by
   the real end-to-end run below (curl showed `HTTP:200`), not missed.
 - **A second bug caught and fixed the same way**: `BuildProcessStartInfo`
-  first combined `PlaywrightExecutableRelativePath` against the *repo
-  root* instead of the UI suite's own working directory (it's
+  first combined `PlaywrightExecutableRelativePath` against the _repo
+  root_ instead of the UI suite's own working directory (it's
   `node_modules/.bin/playwright.cmd`, relative to `automation/ui`) — the
   first live run's pytest phase completed and classified perfectly, then
   Playwright failed to start (`Win32Exception: cannot find the file
-  specified`), correctly landing the Run as `Failed` (proving 4.21's
+specified`), correctly landing the Run as `Failed` (proving 4.21's
   infrastructure-failure path itself works) rather than silently
   succeeding. Fixed the path join; a second full live run confirmed it.
 
 ### Verified
 
 **Backend:**
+
 - `dotnet build` (server) — 0 warnings, 0 errors.
 - `dotnet test` (`server.Tests`) — **34/34 passed** (13 from Step 3 +
   21 new).
@@ -1614,10 +1625,11 @@ starting).
 
 **Real end-to-end integration (4.26), through the Part 5 system, never
 manually from the automation folders:**
+
 1. Fresh migrated SQLite DB. Started the API.
 2. `POST /api/environments` — created a real Environment ("Roie",
    `https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie`)
-   *through the Part 5 application* — this is what the run below actually
+   _through the Part 5 application_ — this is what the run below actually
    targets; no URL was ever typed into the run request itself.
 3. `POST /api/runs {"environmentId":1}` → **202**, `status:"Queued"`,
    returned in well under a second.
@@ -1651,6 +1663,7 @@ manually from the automation folders:**
    verification script, deleted after, not a deliverable).
 
 **Cancellation verification (4.26):**
+
 - Started a second run against the same real Environment.
 - `POST /api/runs/2/stop` while it was `Running` (pytest had just
   finished, Playwright had just discovered its 11 scenarios but none had
@@ -1661,8 +1674,8 @@ manually from the automation folders:**
   became **Cancelled**.
 - Confirmed via `Get-CimInstance Win32_Process` that no orphaned
   node/chromium process was left running — `Kill(entireProcessTree:
-  true)` actually tore down the whole tree, not just the immediate child.
-- Confirmed the second suite genuinely never got to *run* a scenario
+true)` actually tore down the whole tree, not just the immediate child.
+- Confirmed the second suite genuinely never got to _run_ a scenario
   (all 11 Cancelled, zero Passed/Failed/ExpectedFail among them).
 - `POST /stop` on that now-`Stopped` run, and on run 1
   (`Completed`) → both correctly **409**. `POST /stop` on an unknown id →
@@ -1672,6 +1685,7 @@ manually from the automation folders:**
   confirmed the status became `Stopped` and the Stop button disappeared.
 
 **Frontend:**
+
 - `npm run build` (`tsc -b && vite build`) — clean.
 - Housekeeping: `cleanup_test_data.py` found **0** leftover AUTO-prefixed
   offenders after the real run above — the suites' own existing
@@ -1727,27 +1741,27 @@ but Step 4 must NOT implement SignalR broadcasting yet.
 Use the orchestrated model:
 
 React
-  |
-  | POST /api/runs
-  v
+|
+| POST /api/runs
+v
 ASP.NET Core API
-  |
-  +--> create TestRun in SQLite
-  |
-  +--> enqueue execution
-  |
-  v
+|
++--> create TestRun in SQLite
+|
++--> enqueue execution
+|
+v
 RunOrchestrator / Background Worker
-  |
-  +--> pytest
-  |
-  +--> Playwright
-  |
-  +--> parse structured runner events
-  |
-  +--> persist TestCases + ScenarioResults
-  |
-  v
+|
++--> pytest
+|
++--> Playwright
+|
++--> parse structured runner events
+|
++--> persist TestCases + ScenarioResults
+|
+v
 SQLite
 
 The HTTP request that creates a run must NOT remain open while the
@@ -1817,7 +1831,7 @@ POST /api/runs
 Request:
 
 {
-  "environmentId": 1
+"environmentId": 1
 }
 
 Behavior:
@@ -1911,11 +1925,13 @@ POST /api/runs/{id}/stop
 Behavior:
 
 For Queued run:
+
 - cancel/remove or logically cancel the queued execution
 - Status -> Stopped
 - EndedAtUtc -> current UTC time
 
 For Running run:
+
 - request cancellation
 - terminate the currently-running child process
 - terminate its child process tree where supported
@@ -2498,17 +2514,17 @@ Step 5 should not need to redesign runner integration.
 Architecture after Step 5 will become:
 
 Runner
-  |
-  | OW_EVENT
-  v
+|
+| OW_EVENT
+v
 ASP.NET Orchestrator
-  |
-  +--> SQLite
-  |
-  +--> SignalR
-          |
-          v
-        React
+|
++--> SQLite
+|
++--> SignalR
+|
+v
+React
 
 ---
 
@@ -2668,6 +2684,7 @@ starting).
 ### Files added/changed
 
 **test-management/server/:**
+
 - `Hubs/RunHub.cs` (new) — thin Hub (5.1): `SubscribeToRun(runId)` /
   `UnsubscribeFromRun(runId)` add/remove the caller from the
   `run:{runId}` group (`RunHub.GroupName`, 5.2); invalid ids (`<= 0`) are
@@ -2677,7 +2694,7 @@ starting).
   `ToScenarioResultDto`) extracted out of `RunService` so both the REST
   response and every SignalR broadcast are built from one shared mapper
   (5.3) — the live message shape is always identical to what `GET
-  /api/runs/{id}` would show for the same state, never a parallel/divergent
+/api/runs/{id}` would show for the same state, never a parallel/divergent
   shape.
 - `Services/RunOrchestrator.cs` — took a constructor dependency on
   `IHubContext<RunHub>`. Added `BroadcastRunUpdatedAsync`/
@@ -2685,7 +2702,7 @@ starting).
   the points in 5.4: `RunAsync` right after Queued→Running is persisted;
   `HandleDiscoveredAsync` right after a new `ScenarioResult` (Queued) is
   persisted; `HandleStartedAsync` right after Queued→Running; `
-  HandleFinishedAsync` right after the final status is persisted;
+HandleFinishedAsync` right after the final status is persisted;
   `CancelPendingScenariosAsync` right after the Cancelled sweep, once per
   affected scenario; `FinalizeAsync` right after the run's final
   status/totals are persisted. `FindScenarioResultAsync` and
@@ -2695,7 +2712,7 @@ starting).
   `TestCaseId`) for the same reason. `SafeBroadcastAsync` wraps every send
   in try/catch + `LogWarning` — never rethrown (5.5).
 - `Services/RunService.cs` — same `IHubContext<RunHub>` dependency, for the
-  two paths where *this* class (not the orchestrator) flips a Run directly
+  two paths where _this_ class (not the orchestrator) flips a Run directly
   to Stopped without ever starting a process: a still-Queued run, and an
   orphaned Running row with no live cancellation token. Both now broadcast
   `RunUpdated` right after their `SaveChangesAsync`, with the same fail-soft
@@ -2708,6 +2725,7 @@ starting).
   dependencies via constructor injection.
 
 **test-management/client/:**
+
 - `hooks/useRunLiveUpdates.ts` (new) — the one reusable SignalR client
   (5.7): builds a `HubConnection` to `${VITE_API_BASE_URL}/hubs/runs`
   (never hard-coded) with `withAutomaticReconnect()` (5.11), subscribes to
@@ -2717,7 +2735,7 @@ starting).
   (`onRunUpdated`/`onScenarioUpdated`/`onNeedsRefetch`). `onNeedsRefetch`
   fires right after the initial connect+subscribe and after every
   reconnect+resubscribe — the race-handling strategy from 5.10 (connect,
-  subscribe, *then* (re-)fetch REST, so a fast transition during setup
+  subscribe, _then_ (re-)fetch REST, so a fast transition during setup
   can't be missed, and reconnection always ends with an authoritative
   re-fetch, 5.11).
 - `pages/RunDetailPage.tsx` — now uses the hook. `RunUpdated` merges into
@@ -2735,6 +2753,7 @@ starting).
   other visual changes.
 
 **test-management/server.Tests/ (5.16 — 4 new tests, 38 total with Step 4's 34):**
+
 - `TestHubContext.cs` (new, test-only) — `TestHubContext.Real()` builds a
   genuine `IHubContext<RunHub>` through ASP.NET Core's own SignalR DI
   wiring (`AddSignalR()` + `AddLogging()` on a bare `ServiceCollection`) —
@@ -2787,12 +2806,14 @@ starting).
 ### Verified
 
 **Backend:**
+
 - `dotnet build` (server) — 0 warnings, 0 errors.
 - `dotnet test` (`server.Tests`) — **38/38 passed** (34 from Steps 3–4 + 4
   new).
 
 **Real live execution (5.17), through the Part 5 system, an actual
 Environment configured through the platform (not hard-coded):**
+
 1. Fresh migrated SQLite DB. Started the API + Vite dev server.
 2. `POST /api/environments` created a real Environment ("Roie",
    the live OffenderWatch demo URL).
@@ -2821,6 +2842,7 @@ Environment configured through the platform (not hard-coded):**
    consistent source of truth throughout, not the SignalR stream.
 
 **Live Stop verification (5.17/5.18):**
+
 1. Started a second real run (`POST /api/runs {"environmentId":1}` → id 2).
 2. Opened `/runs/2` live, let it run ~9s (pytest had finished, Playwright
    was partway through — 27 scenarios already Passed/ExpectedFail).
@@ -2854,10 +2876,11 @@ run above never needed one, since the connection stayed up throughout).
 Per 5.18's own guidance not to intentionally disrupt the backend runner
 process just to force a reconnect scenario, a full "kill the network mid
 real-run and watch it recover" drill was not performed against the live
-demo app; the reconnect *logic path* itself (re-subscribe + re-fetch) is
+demo app; the reconnect _logic path_ itself (re-subscribe + re-fetch) is
 exercised identically on every connect, which was observed live.
 
 **Frontend:**
+
 - `npm run build` (`tsc -b && vite build`) — clean.
 
 **Regression / scope check:** `git diff --stat` against
@@ -2899,17 +2922,17 @@ Do NOT redesign the runner integration.
 Architecture:
 
 Runner
-  |
-  | OW_EVENT
-  v
+|
+| OW_EVENT
+v
 RunOrchestrator
-  |
-  +--> persist SQLite
-  |
-  +--> publish SignalR event
-             |
-             v
-           React
+|
++--> persist SQLite
+|
++--> publish SignalR event
+|
+v
+React
 
 SignalR is a transport layer on top of the already-working Step 4 flow.
 
@@ -3010,12 +3033,14 @@ Broadcast only after the corresponding database change has been successfully per
 Required broadcast points:
 
 Run:
+
 - Queued -> Running
 - Running -> Completed
 - Running -> Failed
 - Queued/Running -> Stopped
 
 Scenario:
+
 - creation as Queued, if useful for the UI
 - Queued -> Running
 - Running -> final status
@@ -3410,6 +3435,7 @@ build`, `dotnet test` = 38/38, `npm run build`, all clean before starting).
 ### Files added/changed
 
 **automation/ (minimal, integration-only):**
+
 - `automation/api/evidence_capture.py` (new) — a small module, wired into
   the shared `session` fixture's `requests` response hook
   (`conftest.py`), that observes every HTTP call a scenario's shared
@@ -3449,6 +3475,7 @@ regression check before touching anything else; fixed by accepting
 `**_kwargs`.
 
 **test-management/server/:**
+
 - `Services/OwEvent.cs` — added `ArtifactType`/`Path`/`ContentType` fields
   for `artifact_created`.
 - `Services/RunnerOptions.cs` / `appsettings.json` — new
@@ -3501,6 +3528,7 @@ regression check before touching anything else; fixed by accepting
   change.
 
 **test-management/client/:**
+
 - `types/test.ts`, `api/tests.ts`, `types/evidence.ts`, `api/evidence.ts`
   (new) — typed layers, same pattern as every earlier step's API modules.
 - `components/EvidencePanel.tsx` (new) — a simple panel (6.19, explicitly
@@ -3522,6 +3550,7 @@ regression check before touching anything else; fixed by accepting
   styling, `.link-button`.
 
 **test-management/server.Tests/ (30 new tests, 68 total with Steps 3–5's 38):**
+
 - `HistoryClassifierTests.cs` (13) — every rule in 6.3/6.4/6.5/6.6 directly
   as pure-function tests, including the exact worked examples from the
   plan (Regression/Recovery/StillFailing streak-start/recovery-clears-it/
@@ -3535,7 +3564,7 @@ regression check before touching anything else; fixed by accepting
 - `EvidenceTests.cs` (10 — plus 2 covering `EvidenceController` directly)
   — using `RunOrchestrator`'s existing `ApplyEventForTestingAsync` seam
   against a temporary artifact directory (never `test-management/
-  artifacts/` itself): evidence registers against the exact
+artifacts/` itself): evidence registers against the exact
   ScenarioResult; an artifact for an unknown scenario is ignored, not
   thrown; **path traversal is rejected**; a referenced-but-missing file is
   ignored; an unrecognized artifact type is ignored; **older-run evidence
@@ -3559,7 +3588,7 @@ regression check before touching anything else; fixed by accepting
   never collides on disk, and (b) the actual ownership authority is always
   the `EvidenceArtifact.ScenarioResultId` foreign key in SQLite, never the
   folder name.
-- **API evidence captures the *last* request/response the scenario's
+- **API evidence captures the _last_ request/response the scenario's
   session observed**, not every request — 6.16 asks for "at minimum...
   the final request and response," and for every test in this suite
   (single assertion per scenario, immediately following the relevant call)
@@ -3569,7 +3598,7 @@ regression check before touching anything else; fixed by accepting
 - **One screenshot serves both "final" and "failure" evidence for UI
   scenarios** rather than two separate files — `screenshot:'on'` produces
   exactly one screenshot per test (taken at test end regardless of
-  outcome); richer *failure* evidence for UI scenarios instead comes from
+  outcome); richer _failure_ evidence for UI scenarios instead comes from
   the combination of that screenshot + `FailureMessage`/`StackTrace`
   (already persisted on `ScenarioResult` since Step 4) + the trace file —
   together satisfying 6.12's list without an artificial second screenshot.
@@ -3583,6 +3612,7 @@ regression check before touching anything else; fixed by accepting
 ### Verified
 
 **Backend:**
+
 - `dotnet build` (server) — 0 warnings, 0 errors.
 - `dotnet test` (`server.Tests`) — **68/68 passed** (38 from Steps 3–5 +
   30 new).
@@ -3597,6 +3627,7 @@ regression check before touching anything else; fixed by accepting
   correct, real content (inspected directly).
 
 **Real end-to-end integration (6.26), through the Part 5 system:**
+
 1. Fresh migrated SQLite DB, clean `artifacts/`. Real Environment
    ("Roie") created through the platform's own API.
 2. **Run 1** (real app): 33 scenarios, 7 passed/0 failed/26 ExpectedFail —
@@ -3621,6 +3652,7 @@ regression check before touching anything else; fixed by accepting
    execution detail.
 
 **Old-run evidence immutability (6.20) — the core TM-08 requirement:**
+
 1. Hashed Run 1's BUG-001 scenario screenshot (`md5`) before anything
    else executed.
 2. Ran **Run 2** (real app, same TestCases) and **Run 3** (see
@@ -3641,19 +3673,19 @@ of this platform. To produce a genuine transition **without changing any
 assertion or touching any persisted row directly**, a temporary local HTTP
 stub server was started (stdlib `http.server`, not part of any
 deliverable) that answers `GET /api/offenders` with an empty list — a
-*real, different* target. It was registered as a real Environment through
+_real, different_ target. It was registered as a real Environment through
 the platform's own `/environments` page
 (`Step6-Demo-Local-Mock`, `http://127.0.0.1:8791`) — exactly the
 "legitimate scenario/environment/setup" 6.27 anticipates for a
 deterministic-defect app. Recorded sequence (verified via
 `GET /api/tests/2/history` and live on `/tests/2` in the browser):
 
-| Run | Environment | Result | Transition |
-|---|---|---|---|
-| 1 | Roie (real app) | Passed | FirstResult |
-| 2 | Roie (real app) | Passed | StillPassing |
-| 3 | Step6-Demo-Local-Mock | **Failed** | **Regression** |
-| 4 | Roie (real app) | Passed | **Recovery** |
+| Run | Environment           | Result     | Transition     |
+| --- | --------------------- | ---------- | -------------- |
+| 1   | Roie (real app)       | Passed     | FirstResult    |
+| 2   | Roie (real app)       | Passed     | StillPassing   |
+| 3   | Step6-Demo-Local-Mock | **Failed** | **Regression** |
+| 4   | Roie (real app)       | Passed     | **Recovery**   |
 
 for `test_search_is_partial_match` — its own real assertion
 (`_pick_live_offender` raises "no offender with a usable last name found")
@@ -3669,6 +3701,7 @@ Step 3 designed (a second, incidental live confirmation of 3.5/6.22 — "an
 Environment's deletion never deletes historical Run data or evidence").
 
 **Frontend:**
+
 - `npm run build` (`tsc -b && vite build`) — clean.
 - Housekeeping: `cleanup_test_data.py` found **0** leftover AUTO-prefixed
   offenders after all four real runs.
@@ -3705,16 +3738,16 @@ Do not redesign execution, OW_EVENT, SignalR, or existing runner behavior.
 Existing architecture remains:
 
 Runner
-  |
-  | OW_EVENT
-  v
+|
+| OW_EVENT
+v
 RunOrchestrator
-  |
-  +--> ScenarioResult / TestCase persistence
-  +--> Evidence capture
-  +--> SignalR
-  |
-  v
+|
++--> ScenarioResult / TestCase persistence
++--> Evidence capture
++--> SignalR
+|
+v
 SQLite + artifacts/
 
 History is derived from persisted TestCase + ScenarioResult data.
@@ -3800,13 +3833,16 @@ Relevant final statuses:
 For regression/recovery analysis:
 
 Failure-like:
+
 - Failed
 - ExpectedFail
 
 Success-like:
+
 - Passed
 
 Neutral / non-comparable:
+
 - Skipped
 - Cancelled
 
@@ -4009,14 +4045,14 @@ Evidence paths must be relative, not machine-specific absolute paths.
 Suggested hierarchy:
 
 artifacts/
-  run-{runId}/
-    scenario-{scenarioResultId}/
-      execution.log
-      final.png
-      failure.png
-      api-request.json
-      api-response.json
-      trace.zip
+run-{runId}/
+scenario-{scenarioResultId}/
+execution.log
+final.png
+failure.png
+api-request.json
+api-response.json
+trace.zip
 
 Exact filenames may vary, but ownership must remain unambiguous.
 
@@ -4056,9 +4092,11 @@ Every executed scenario must store:
 Interpret final snapshot by suite:
 
 UI scenario:
+
 - final browser screenshot
 
 API scenario:
+
 - final request/response snapshot
 
 For API scenarios, the request and response may be represented as separate
@@ -4197,12 +4235,14 @@ relevant to the failure where technically determinable.
 Store useful fields such as:
 
 Request:
+
 - method
 - URL
 - headers where safe/useful
 - request body where present
 
 Response:
+
 - status code
 - headers where useful
 - response body
@@ -4302,12 +4342,15 @@ This is a core TM-08 requirement.
 ### 6.21 Evidence and Stop
 
 If a scenario finishes before Stop:
+
 - preserve its evidence normally.
 
 If a scenario is Cancelled before evidence is produced:
+
 - do not fabricate final evidence.
 
 If partial useful evidence exists:
+
 - it may be retained and registered.
 
 Cancellation must not delete evidence from already-completed scenarios.
@@ -4380,12 +4423,14 @@ Do not depend on the external demo site for deterministic self-tests.
 Perform at least one real platform-started run and verify:
 
 For UI scenario:
+
 - execution log exists
 - final screenshot exists
 - failed/ExpectedFail screenshot evidence exists where applicable
 - trace exists where Playwright generated one
 
 For API scenario:
+
 - execution log exists
 - request evidence exists
 - response evidence exists
@@ -4420,6 +4465,7 @@ Document exactly how the demonstrated transition was produced.
 Update README documentation with:
 
 History:
+
 - stable TestCase identity
 - chronological ScenarioResult derivation
 - transition rules
@@ -4428,6 +4474,7 @@ History:
 - flakiness heuristic
 
 Evidence:
+
 - disk + SQLite metadata architecture
 - artifact directory structure
 - evidence ownership
@@ -4462,6 +4509,7 @@ Do not implement bonuses.
 Step 6 is DONE only when:
 
 TM-04:
+
 - /api/tests returns real TestCases
 - /api/tests/{id}/history works
 - React Tests page works
@@ -4473,6 +4521,7 @@ TM-04:
 - flakiness heuristic is implemented and documented
 
 TM-08:
+
 - every completed UI scenario has a scenario log + final screenshot
 - every completed API scenario has a scenario log + request/response evidence
 - failure evidence is richer
@@ -4485,6 +4534,7 @@ TM-08:
 - old failed-run evidence remains inspectable
 
 Verification:
+
 - history tests pass
 - evidence tests pass
 - all existing backend tests pass
@@ -4512,15 +4562,979 @@ Do not begin Step 7.
 
 ---
 
-## Step 7 — Test Data Lifecycle
+## Step 7 — Test Data Lifecycle (TM-06)
 
-Implement TM-06.
+**STATUS: DONE (2026-08-31). TM-06 -> DONE.**
 
-Details will be defined before implementation.
+Implemented 7.1–7.25 with no redesign of Steps 4–6 — `OW_EVENT` gained
+exactly one more event type (`test_data_created`), the existing
+`TestDataRecord` model from Step 2 needed no schema change. First
+confirmed Steps 1–6 were intact (`dotnet build`, `dotnet test` = 87/87 —
+wait, that count is *after* this step's own tests; the pre-step baseline
+checked was 68/68 — `npm run build`, all clean before starting).
 
-Seeded application data must NEVER be deleted.
+### Files added/changed
+
+**automation/ (minimal, integration-focused; only 2 spec files touched, additively):**
+- `automation/api/test_data_capture.py` (new) — a second, independent
+  response hook on the same shared `session` fixture evidence capture
+  already uses. Detects ownership purely from the target app's own
+  response (`POST /api/offenders` or `POST /api/offenders/{id}/locations`
+  returning 2xx) — never scans, never consults the `AUTO` convention (that
+  stays a cleanup-time-only safety guard, per 7.2/7.9).
+- `automation/api/conftest.py` — wires `test_data_capture.record` onto the
+  session's response hook alongside `evidence_capture.record`; extends the
+  existing `pytest_runtest_setup` hook to also call
+  `test_data_capture.begin_scenario`.
+- `automation/api/ow_event_reporter.py` — `_finish` now also emits one
+  `test_data_created` OW_EVENT per entity `test_data_capture` observed for
+  that scenario, regardless of pass/fail status.
+- `automation/ui/reporters/test-data-capture.js` (new) — Playwright's
+  Reporter runs in a different OS process than the actual test code, so
+  (unlike pytest's `session`) there is no shared in-memory hook available;
+  `testInfo.attach()` is Playwright's own sanctioned worker→reporter
+  channel, used here exactly per the plan's documented fallback ("if
+  creation ownership cannot safely be inferred centrally, use a minimal
+  explicit registration at the actual successful creation point").
+- `automation/ui/reporters/ow-event-reporter.js` — `onTestEnd` now also
+  reads back any `ow-test-data-created` attachments and emits
+  `test_data_created`.
+- `automation/ui/tests/fr03-create-validation.spec.js`,
+  `fr10-location-validation.spec.js` — **the only two spec files touched
+  this entire Part 5 project** — one additive `registerOffenderCreated(...)`
+  call each, at their pre-existing "found/confirmed a real created item,
+  about to delete it" points. No assertion, fixture behavior, or test
+  semantics changed — confirmed by `git diff --stat` showing only these
+  two files (+23/-5 lines total) among every `.spec.js`/`test_api*.py` file
+  in the repo.
+- `automation/README.md` — documents both new modules and the `test_data_created` event.
+
+**test-management/server/:**
+- `Services/OwEvent.cs` — added `EntityType`/`EntityExternalId`/`EntityIdentifier`,
+  deliberately named apart from the existing `ExternalId` (which keeps its
+  established meaning — the *creating scenario's* stable identity — across
+  every event type, `test_data_created` included).
+- `Services/RunOrchestrator.cs` — `HandleTestDataCreatedAsync`: resolves
+  `EntityType` (ignored if unrecognized — never throws), resolves the
+  reporting `ScenarioResult` via the existing `FindScenarioResultAsync`
+  (already scoped to `_runId`, so cross-run attribution is structurally
+  impossible, not just checked), and adds a **new** `TestDataRecord` with
+  `CleanupStatus = Active`. `TestRunId` is always set — the event
+  physically arrived on this run's own piped child-process stdout, which
+  is inherently trustworthy regardless of whether the scenario resolves;
+  `ScenarioResultId` is left `null` rather than guessed when it can't be
+  resolved (7.4).
+- `Services/ITestDataService.cs`/`TestDataService.cs` (new) — the cleanup
+  engine (7.8–7.14):
+  - `GetAllAsync` supports optional `status`/`entityType`/`runId` filters.
+  - `CleanAsync`/`CleanBatchAsync` resolve everything server-side from the
+    `TestDataRecord` row + its `TestRun.BaseUrlSnapshot` — the browser
+    never supplies a target id or URL. An empty batch id list is a
+    validation error (never "clean everything").
+  - `CleanOneAsync` is a no-op for an already-`Cleaned` record (never
+    re-issues the DELETE); refuses `LocationPoint` cleanup outright (no
+    HTTP call at all — see Design decisions); for `Offender`, requires
+    **both** an existing `TestDataRecord` row **and** an `AUTO`-prefixed
+    `Identifier` before attempting the destructive call (7.9's defense in
+    depth) — either check failing means `CleanupFailed`, never a call.
+  - `DeleteOffenderAsync` maps the real, empirically-verified target API
+    behavior (see Design decisions): 204/200 → `Cleaned`; 404 →
+    `Cleaned` (confirmed already gone, 7.12); anything else (5xx, other
+    4xx, timeout, connection failure) → `CleanupFailed`, never "gone".
+  - Batch cleanup orders `LocationPoint` records ahead of `Offender`
+    records (7.14) and processes each independently — one failure never
+    hides another's success.
+- `Controllers/TestDataController.cs` (new) — `GET /api/test-data`,
+  `POST /api/test-data/{id}/clean`, `POST /api/test-data/clean`.
+- `Services/RunServiceExceptions.cs` — added
+  `TestDataRecordNotFoundException` (404), `TestDataValidationException`
+  (400).
+- `DTOs/TestDataDtos.cs` (new) — `TestDataRecordDto`,
+  `CleanTestDataBatchRequest`; no EF entity or filesystem/target detail
+  ever leaves the API.
+- `Program.cs` — `AddHttpClient()` (a plain, unnamed factory — the target
+  varies per Run, so no fixed `BaseAddress` is configured); registered
+  `ITestDataService`; extended the exception-mapping switch.
+
+**test-management/client/:**
+- `types/testData.ts`, `api/testData.ts` (new) — typed layer, same pattern
+  as every earlier step.
+- `pages/TestDataPage.tsx` (replaces the Step-1 placeholder) — real table
+  (Entity Type/Identifier/Run/Environment/Created/Status/Cleaned
+  At/Actions), `Clean`/`Retry Clean` per row with a native `confirm()`
+  before the destructive call, an optional `Clean All Active` batch action
+  (also confirmed, shows the count first), and every row update comes from
+  the real backend response — never optimistic.
+- `index.css` — `.status-active`/`.status-cleaned`/`.status-cleanupfailed`.
+
+**test-management/server.Tests/ (19 new tests, 87 total with Steps 3–6's 68):**
+- `FakeHttpClientFactory.cs` (new, test-only) — a deterministic
+  `IHttpClientFactory` whose `HttpClient` never makes a real network call;
+  either a fixed status code or a caller-supplied response delegate, and a
+  variant that throws (simulating a connection failure). Used by every
+  `TestDataService` test — **no test in this project ever makes a
+  destructive call against the real OffenderWatch environment** (7.22).
+- `TestDataServiceTests.cs` (14) — successful delete → Cleaned+timestamp;
+  404 (confirmed already gone) → Cleaned; 5xx → CleanupFailed, not Cleaned;
+  network failure → CleanupFailed, not Cleaned; CleanupFailed → retried
+  successfully; an already-Cleaned record never re-calls the API; cleanup
+  uses the owning Run's `BaseUrlSnapshot` (asserted directly against the
+  captured request URL); the seed-safety guard rejects a real,
+  genuinely-owned-but-non-`AUTO` record *without ever calling the API*;
+  `LocationPoint` cleanup is always refused, also without ever calling the
+  API; empty batch list throws validation; batch partial success/failure
+  (one failure doesn't hide the other's success); batch processes
+  LocationPoints before Offenders; cleanup never deletes the
+  `TestDataRecord` row itself; cleanup never touches Run/Scenario/Evidence
+  history (seeded and asserted directly).
+- `TestDataAttributionTests.cs` (5) — `test_data_created` creates an Active
+  record; correct Run+ScenarioResult attribution (and explicitly *not* the
+  other run's ScenarioResult for the same TestCase); an unresolvable
+  scenario still records Run-level ownership with a null ScenarioResultId;
+  an unrecognized EntityType is ignored, not thrown; a `LocationPoint` with
+  a null ExternalId is still registered (matches real API behavior).
+
+### Design decisions / deviations
+
+- **A real, previously-undocumented API behavior was discovered and now
+  drives the LocationPoint design**: inspected the target app's own
+  swagger contract (no delete-by-id endpoint for a location point exists
+  at all) and then live-probed it with a disposable offender — after
+  `DELETE /api/offenders/{id}` (204, genuinely successful), the same
+  offender's `GET /api/offenders/{id}/trail` still returned its full,
+  unmodified trail data. Deleting an Offender does **not** cascade-delete
+  its LocationPoints — they are permanently orphaned, retrievable forever.
+  This is a more precise, mechanistic account of BUG-015
+  ("`totalLocationPoints` doesn't decrease after deletion") than was
+  previously documented. Given this, `TestDataService` refuses
+  `LocationPoint` cleanup outright — there is no safe, real call to make —
+  rather than either fabricating success or silently doing nothing;
+  `LocationPoint` records are still registered (both suites) for
+  ownership/audit visibility, exactly as 7.3 permits ("inspection" is an
+  explicitly valid purpose even without a cleanup path).
+- **Delete-response mapping is empirically grounded, not assumed**: the
+  same live probe confirmed `DELETE` on an already-deleted or genuinely
+  unknown offender id reliably returns **404** — the one *reliable* "gone"
+  signal this app provides (`GET` is not reliable for this, returning 200
+  for an unknown id too — the same behavior as BUG-012). This exact
+  mapping (204/200→Cleaned, 404→Cleaned, else→CleanupFailed) is what
+  `DeleteOffenderAsync` implements and what `TestDataServiceTests.cs`
+  asserts.
+- **Playwright registration required touching 2 spec files** — the only
+  test-file changes anywhere in Part 5 to date. Justified explicitly:
+  7.5/7.6 both prefer centralized interception but explicitly sanction "a
+  minimal explicit registration at the actual successful creation point"
+  when centralized interception can't be done safely — true here because a
+  Playwright Reporter is architecturally a separate process from the
+  worker running the test, unlike pytest's in-process `session` fixture.
+  Every change is additive (one line calling a shared helper); no
+  assertion, selector, or fixture behavior was altered.
+- **`fr10-location-validation.spec.js`'s LocationPoint is intentionally
+  not registered** — see Real Integration Verification below; documented
+  rather than fabricated, per 7.23's explicit allowance.
+
+### Verified
+
+**Backend:**
+- `dotnet build` (server) — 0 warnings, 0 errors.
+- `dotnet test` (`server.Tests`) — **87/87 passed** (68 from Steps 3–6 +
+  19 new). Zero real HTTP calls in any of them (`FakeHttpClientFactory`).
+
+**Standalone regression check** — both suites still run exactly as before,
+independently of the platform: pytest **17 failed / 5 passed**, Playwright
+**9 failed / 2 passed** — both exactly the established baseline, confirming
+the fr03/fr10 additive changes altered no observable test behavior.
+Smoke-tested `test_data_created` emission directly (both suites, a
+throwaway `OFFENDERWATCH_ARTIFACT_DIR`-style run): every Offender/LocationPoint
+creation across the API validation-reject tests was correctly captured,
+including the duplicate-National-ID test correctly reporting the *same*
+(non-`AUTO`) identifier for both the original and the duplicate — real,
+accurate capture of what actually happened, not a bug.
+
+**Real end-to-end integration (7.23), through the Part 5 system:**
+1. Fresh migrated SQLite DB. Real Environment ("Roie") created through the
+   platform's own API.
+2. A real Run: 33 scenarios, 7 passed/0 failed/26 ExpectedFail — the
+   established baseline (unaffected by this step, as expected).
+3. **30 real `TestDataRecord`s** were registered — 20 Offenders + 10
+   LocationPoints — every one with correct `TestRunId` and (in every case
+   where the reporting scenario resolved) correct `ScenarioResultId`,
+   real `ExternalId`s (actual offender ids returned by the app, e.g.
+   `620`), and real `Identifier`s (including the duplicate-National-ID
+   test's record correctly showing `305412876`, **not** `AUTO`-prefixed —
+   exactly the case the seed-safety guard exists for).
+4. Opened `/test-data` in a **real Chromium browser** (Playwright driving
+   it — a throwaway verification script, deleted after): 30 rows, all
+   `Active`.
+5. Clicked **Clean** on one specific `AUTO`-prefixed Offender record live
+   in the browser: the confirm dialog appeared, and the row updated —
+   from the real backend response, not optimistically — to `Cleaned` with
+   a real `CleanedAtUtc`.
+6. Verified independently, directly against the real target app: a fresh
+   `DELETE` against that same offender id now returns **404** — it is
+   genuinely gone. The platform's cleanup call really did delete it.
+7. Verified the **"already missing target" path (7.12)** against real
+   data: cleaning a different record (whose underlying offender had
+   already been deleted by that pytest test's own long-standing
+   self-cleanup, seconds earlier, same session) correctly resulted in
+   `Cleaned` — the DELETE call still genuinely happened and returned a
+   real 404, confirmed, not assumed.
+8. Verified the **seed-safety guard against real data** (not only unit
+   tests): attempting to clean the `305412876`-identified record (real,
+   explicitly owned, but not `AUTO`-prefixed) correctly resulted in
+   `CleanupFailed` with `CleanedAtUtc` staying null — refused before any
+   destructive call.
+9. Used **"Clean All Active"** live in the browser on the remaining 27
+   Active records: resulted in exactly 19 `Cleaned` (17 genuinely-owned
+   `AUTO` Offenders + the 2 already-`Cleaned`/`CleanupFailed` from steps
+   5/7/8 above) and 11 `CleanupFailed` (10 `LocationPoint`s, refused by
+   design, + the 1 seed-safety refusal) — the arithmetic checks out
+   exactly against what was seeded (30 total, 10 LocationPoints, 1
+   non-`AUTO` Offender, 19 cleanable `AUTO` Offenders).
+10. **Confirmed after all cleanup**: `GET /api/runs/1` still showed all 33
+    scenarios with unchanged totals; `GET /api/runs/1/scenarios/6/evidence`
+    still showed all 3 of its original evidence artifacts; `GET
+    /api/tests` still showed all 33 tracked TestCases; **`GET
+    /api/test-data` still showed all 30 `TestDataRecord` rows** (cleanup
+    never deletes the ownership record itself); and the real target app's
+    seeded offenders (Cohen, Biton, Gabay, etc.) were confirmed still
+    present and untouched.
+
+**LocationPoint lifecycle**: per 7.23's own explicit allowance, **not**
+verified as a real deletion, because — confirmed directly against the real
+API during this step — no such deletion is technically possible (no
+endpoint exists, and offender deletion doesn't cascade to it either). This
+is documented, not worked around; `fr10-location-validation.spec.js`'s own
+real assertion (`countAfter === countBefore`) is additionally the evidence
+that, through the UI flow specifically, no LocationPoint even ends up
+persisted in that scenario — so nothing was manufactured to force a
+verification that wouldn't reflect anything real.
+
+**Seed safety (7.24)**: verified before and after all real cleanup above
+that the original seeded offenders remain present and unaffected. No
+seeded offender was ever targeted for deletion, real or attempted — the
+rejection behavior itself was exercised only against a genuinely-owned,
+non-`AUTO` **automation-created** record (step 8 above) and via
+deterministic backend tests, exactly as 7.24 requires.
+
+**Frontend:**
+- `npm run build` (`tsc -b && vite build`) — clean.
+- Housekeeping: `cleanup_test_data.py` (the legacy utility, run manually,
+  once, at the very end) found **0** leftover `AUTO`-prefixed offenders —
+  everything created during this step's real verification had already
+  been genuinely cleaned through the platform itself.
+
+Not implemented (correctly, per the 7.26 scope boundary): TM-07 dynamic
+dashboard, scheduled cleanup, retention policies, scheduled runs,
+notifications, authentication, bonuses.
+
+Housekeeping: the verification `test-management/data/testmanagement.db`
+and `test-management/artifacts/` were deleted after this step's checks
+(same reasoning as Steps 2–6).
+
+STOP after Step 7. Awaiting review before Step 8 (Dynamic Dashboard).
 
 ---
+
+### Step 7 spec (as implemented, kept verbatim below for reference)
+
+Status: READY FOR IMPLEMENTATION
+
+### Goal
+
+Implement explicit lifecycle tracking and safe cleanup of test-created
+OffenderWatch data.
+
+The platform must know which Offenders and LocationPoints were created
+by automation, which Run/Scenario created them, whether they are still active,
+and whether cleanup succeeded.
+
+The original seeded OffenderWatch data must never be deleted.
+
+Ownership must be explicit.
+
+Do NOT infer ownership solely from AUTO prefixes or other naming conventions.
+
+Architecture:
+
+Automation scenario
+|
+| creates Offender / LocationPoint
+v
+OffenderWatch API
+|
+| OW_EVENT test_data_created
+v
+RunOrchestrator
+|
+v
+TestDataRecord
+|
+v
+SQLite
+|
+v
+React Test Data page
+|
+| Clean
+v
+ASP.NET TestDataService
+|
+| DELETE through owning Run's
+| BaseUrlSnapshot
+v
+OffenderWatch API
+
+---
+
+### 7.1 Existing Model
+
+Use the existing TestDataRecord model created in Step 2.
+
+Fields already include:
+
+- Id
+- TestRunId
+- ScenarioResultId
+- EntityType
+- ExternalId
+- Identifier
+- CreatedAtUtc
+- CleanedAtUtc
+- CleanupStatus
+
+CleanupStatus values:
+
+- Active
+- Cleaned
+- CleanupFailed
+
+Do not create a second ownership table unless technically necessary.
+
+---
+
+### 7.2 Explicit Ownership Rule
+
+A TestDataRecord may only be created when automation explicitly reports
+that it successfully created that entity.
+
+The platform must not scan the target application and claim arbitrary records.
+
+The following are NOT sufficient proof of ownership by themselves:
+
+- NationalId starts with AUTO
+- recently-created record
+- unfamiliar offender
+- record not part of a known seed list
+
+AUTO-style identifiers may be retained as an additional safety guard.
+
+They are NOT the ownership model.
+
+---
+
+### 7.3 Runner Event
+
+Extend the existing OW_EVENT protocol with:
+
+test_data_created
+
+The event must contain:
+
+- version
+- eventType = test_data_created
+- runner
+- timestampUtc
+- ExternalId of the creating test scenario
+- entityType
+- externalId where known
+- identifier where useful
+
+Supported EntityType values:
+
+- Offender
+- LocationPoint
+
+For Offender:
+
+- externalId should preferably be the actual OffenderWatch offender ID
+  returned by the application
+- identifier should preferably contain the automation-owned National ID
+
+For LocationPoint:
+
+- externalId should identify the location point if the target API exposes
+  a stable location-point ID
+- identifier should contain enough safe context to support cleanup/inspection
+
+Do not invent IDs that the target API did not return.
+
+---
+
+### 7.4 Scenario Attribution
+
+When RunOrchestrator receives test_data_created:
+
+1. Resolve TestCase from the event's stable ExternalId.
+2. Resolve ScenarioResult for the current TestRun.
+3. Create TestDataRecord linked to:
+   - TestRun
+   - ScenarioResult where available
+4. Store:
+   - EntityType
+   - ExternalId
+   - Identifier
+   - CreatedAtUtc
+   - CleanupStatus = Active
+
+Never attach test data to a ScenarioResult belonging to another Run.
+
+If attribution cannot be performed safely, log the integration problem and
+do not create a misleading ownership record.
+
+---
+
+### 7.5 API Automation Integration
+
+Inspect the existing pytest scenarios that create Offenders and/or
+LocationPoints.
+
+Modify only the shared integration/fixture/helper layer where practical.
+
+Do not rewrite assertions or test semantics.
+
+After a successful create response:
+
+- identify the created entity from the actual API response
+- emit test_data_created
+
+Preserve the existing unique National ID behavior.
+
+If centralized interception cannot reliably determine that a request represents
+successful test-data creation, use a minimal explicit helper/fixture call in
+the small number of tests that actually create persistent data.
+
+Prefer correctness over clever interception.
+
+---
+
+### 7.6 UI Automation Integration
+
+Inspect the existing Playwright scenarios for persistent test-created
+Offenders or LocationPoints.
+
+If a UI scenario creates persistent server-side data, explicitly register it.
+
+Do not register:
+
+- temporary UI-only state
+- edits to existing seeded records
+- entities that were not actually created
+
+Use the same test_data_created event contract.
+
+Do not change assertions.
+
+---
+
+### 7.7 Parent / Child Ownership
+
+A LocationPoint may belong to an automation-created Offender.
+
+Preserve enough ownership context to clean safely.
+
+Cleanup order must respect dependencies:
+
+1. LocationPoints
+2. Offenders
+
+where required by the target API.
+
+If deleting an Offender automatically removes its LocationPoints, inspect and
+document the actual target API behavior and update corresponding owned
+LocationPoint records consistently.
+
+Do not assume cascade behavior without verifying it.
+
+---
+
+### 7.8 Cleanup Safety
+
+Cleanup must operate only on persisted Active or CleanupFailed
+TestDataRecords.
+
+Before sending a destructive request, verify:
+
+- TestDataRecord exists
+- it has explicit Run ownership
+- required target identifier/ID exists
+- target BaseUrl comes from owning TestRun.BaseUrlSnapshot
+- entity type is supported
+- safety rules for that entity pass
+
+Never accept an arbitrary BaseUrl from the browser.
+
+Never accept an arbitrary Offender ID from the browser and delete it directly.
+
+The browser sends only a TestDataRecord ID or an explicit list of owned
+TestDataRecord IDs.
+
+The backend resolves the actual target entity.
+
+---
+
+### 7.9 Seed Protection
+
+The original 11 seeded offenders/trails must never be deleted.
+
+Implement defense in depth.
+
+Primary protection:
+
+Only explicitly registered TestDataRecords are eligible for cleanup.
+
+Additional protection for automation-created Offenders:
+
+Validate the expected automation identifier convention where available,
+such as NationalId beginning with AUTO.
+
+Therefore cleanup requires BOTH:
+
+1. explicit TestDataRecord ownership
+2. applicable safety validation
+
+AUTO alone is never enough to establish ownership.
+
+If an owned record fails the safety validation, refuse automatic deletion
+rather than risking seeded data.
+
+Do not maintain a fragile hard-coded list of 11 database IDs unless the target
+application provides guaranteed stable seed identities.
+
+Never bulk-delete arbitrary Offenders.
+
+---
+
+### 7.10 Cleanup Through OffenderWatch API
+
+TM-06 cleanup must use the target OffenderWatch application API.
+
+Do not directly modify the OffenderWatch database.
+
+Use:
+
+TestRun.BaseUrlSnapshot
+
+as the target application URL.
+
+Do NOT re-read the current Environment BaseUrl for historical test data.
+
+This means cleanup can still target the correct environment even if the
+Environment configuration was later edited or deleted.
+
+Use HttpClient through ASP.NET Core dependency injection.
+
+---
+
+### 7.11 Cleanup Result Semantics
+
+Successful deletion:
+
+CleanupStatus -> Cleaned
+CleanedAtUtc -> current UTC time
+
+Failed deletion:
+
+CleanupStatus -> CleanupFailed
+CleanedAtUtc remains null
+
+Do not delete TestDataRecord after successful cleanup.
+
+The record is historical ownership/audit information.
+
+A later successful retry may transition:
+
+CleanupFailed -> Cleaned
+
+---
+
+### 7.12 Already Missing Target
+
+If the target API reliably confirms that an explicitly-owned entity no longer
+exists:
+
+- mark TestDataRecord as Cleaned
+- set CleanedAtUtc
+- preserve the ownership record
+
+Do not treat:
+
+- timeout
+- connection failure
+- 5xx
+- ambiguous API error
+
+as evidence that the target is already gone.
+
+Those cases should result in CleanupFailed.
+
+---
+
+### 7.13 Test Data APIs
+
+Implement:
+
+GET /api/test-data
+
+Support simple optional filters where useful:
+
+- status
+- entityType
+- runId
+
+Return at least:
+
+- Id
+- TestRunId
+- ScenarioResultId
+- EnvironmentNameSnapshot
+- EntityType
+- ExternalId
+- Identifier
+- CreatedAtUtc
+- CleanedAtUtc
+- CleanupStatus
+
+Implement:
+
+POST /api/test-data/{id}/clean
+
+Behavior:
+
+- clean exactly one explicitly-owned record
+- return the updated TestDataRecord/result
+
+Implement:
+
+POST /api/test-data/clean
+
+Request:
+
+{
+"ids": [1, 2, 3]
+}
+
+The list must be explicit.
+
+An empty list must NOT mean "clean everything".
+
+Return per-record cleanup outcomes.
+
+One failure must not hide successful cleanup of other requested records.
+
+---
+
+### 7.14 Batch Cleanup Ordering
+
+For batch cleanup:
+
+1. LocationPoints first
+2. Offenders second
+
+where dependencies require it.
+
+Process each TestDataRecord independently.
+
+Do not mark the whole batch Cleaned simply because some records succeeded.
+
+Preserve deterministic cleanup behavior.
+
+---
+
+### 7.15 React Test Data Page
+
+Replace the existing:
+
+/test-data
+
+placeholder with real persisted data.
+
+Display at minimum:
+
+- Entity Type
+- Identifier
+- Run
+- Environment
+- Created
+- Cleanup Status
+- Cleaned At
+- Actions
+
+Status values should be clearly visible:
+
+- Active
+- Cleaned
+- Cleanup Failed
+
+For Active records provide:
+
+Clean
+
+For CleanupFailed records provide:
+
+Retry Clean
+
+Require confirmation before destructive cleanup.
+
+---
+
+### 7.16 Clean All Active
+
+A "Clean All Active" action may be added only if implemented safely.
+
+It must:
+
+- operate only on explicitly persisted owned records
+- show how many records will be cleaned
+- require confirmation
+- resolve each target server-side
+
+Do not create an API where an empty/unbounded request means arbitrary cleanup.
+
+This action is optional for Step 7.
+
+---
+
+### 7.17 UI Behavior
+
+After cleanup:
+
+- update the row from the real backend response
+- do not optimistically mark it Cleaned
+- show CleanupFailed clearly when cleanup fails
+- keep successfully cleaned records visible
+
+The UI must never delete the historical TestDataRecord row merely because the
+target entity was deleted.
+
+Where practical, allow navigation to the owning Run.
+
+---
+
+### 7.18 Existing cleanup_test_data.py
+
+Do NOT use the existing cleanup_test_data.py as the implementation of TM-06.
+
+It may remain as a developer/maintenance safety utility.
+
+The Part 5 platform must perform cleanup through its own tracked ownership
+model and backend service.
+
+Do not automatically execute cleanup_test_data.py after every Run.
+
+Doing so would defeat the requirement to show accumulated test data and clean
+it through the platform.
+
+Document the difference between:
+
+- legacy developer cleanup utility
+- Part 5 Test Data Lifecycle
+
+---
+
+### 7.19 History and Evidence Independence
+
+Cleaning test-created target data must NOT delete or modify:
+
+- TestRun
+- TestCase
+- ScenarioResult
+- EvidenceArtifact
+- evidence files
+- TestDataRecord
+- historical test results
+
+Only the owned entity in the target OffenderWatch application is cleaned.
+
+Historical execution information remains inspectable.
+
+---
+
+### 7.20 Deleted Environment Handling
+
+Cleanup must continue to work if the original Environment configuration
+has been deleted.
+
+Use the immutable:
+
+TestRun.BaseUrlSnapshot
+
+Do not require the Environment FK to still exist.
+
+---
+
+### 7.21 Stopped / Failed Runs
+
+TestDataRecords registered before a Run becomes:
+
+- Stopped
+- Failed
+
+must remain tracked.
+
+A stopped run may still have created persistent data that needs cleanup.
+
+Do not discard ownership records merely because execution did not finish.
+
+---
+
+### 7.22 Backend Tests
+
+Add deterministic tests covering at least:
+
+- test_data_created creates an Active TestDataRecord
+- correct Run attribution
+- correct ScenarioResult attribution
+- cross-run attribution is rejected
+- unregistered arbitrary entities cannot be cleaned
+- cleanup uses owning Run.BaseUrlSnapshot
+- successful cleanup -> Cleaned + CleanedAtUtc
+- failed cleanup -> CleanupFailed
+- CleanupFailed can be retried successfully
+- confirmed already-missing entity -> Cleaned
+- network failure is NOT treated as Cleaned
+- server failure is NOT treated as Cleaned
+- cleaned TestDataRecord remains persisted
+- seed safety guard rejects unsafe deletion
+- batch cleanup supports partial success/failure
+- LocationPoint-before-Offender ordering
+- cleanup does not remove Run/Scenario/Evidence history
+
+Use mocked/fake HTTP behavior.
+
+Backend self-tests must never make destructive calls against the real
+OffenderWatch environment.
+
+---
+
+### 7.23 Real Integration Verification
+
+Perform a controlled real platform-started run that creates test data.
+
+Verify:
+
+1. automation creates a real automation-owned entity
+2. test_data_created is emitted
+3. TestDataRecord appears in SQLite
+4. correct Run is recorded
+5. correct ScenarioResult is recorded
+6. React Test Data page shows the entity as Active
+7. trigger Clean from the React UI
+8. backend calls the real OffenderWatch API
+9. target entity is actually removed
+10. TestDataRecord becomes Cleaned
+11. CleanedAtUtc is populated
+12. Run history remains accessible
+13. Scenario evidence remains accessible
+
+Verify at least one real Offender lifecycle end-to-end.
+
+If the existing automation safely creates a persistent LocationPoint,
+also verify its lifecycle.
+
+If it does not, document that rather than manufacturing a destructive scenario
+solely for verification.
+
+---
+
+### 7.24 Seed Safety Verification
+
+Before and after the controlled real cleanup:
+
+- verify that the original seeded application data remains unaffected
+
+Never intentionally attempt to delete a seeded offender just to prove that the
+guard works.
+
+Test the rejection behavior through deterministic backend tests instead.
+
+Real cleanup should target only a newly-created automation-owned entity whose
+identity is known.
+
+---
+
+### 7.25 Documentation
+
+Update README documentation with:
+
+- explicit ownership model
+- test_data_created OW_EVENT
+- TestDataRecord lifecycle
+- cleanup APIs
+- BaseUrlSnapshot usage
+- seed protection strategy
+- CleanupFailed retry behavior
+- LocationPoint dependency behavior
+- legacy cleanup script distinction
+- history/evidence retention after cleanup
+
+---
+
+### 7.26 Scope Boundary
+
+Step 7 DOES NOT implement:
+
+- TM-07 dynamic Dashboard
+- scheduled cleanup
+- retention policies
+- scheduled runs
+- notifications
+- authentication
+- bonuses
+
+Do not implement Step 8.
+
+---
+
+### Step 7 Definition of Done
+
+Step 7 is DONE only when:
+
+- test-created persistent data is explicitly registered
+- TestDataRecord is linked to the owning Run
+- ScenarioResult is linked where available
+- ownership is not inferred solely from AUTO
+- /api/test-data returns real tracked data
+- single-record Clean works
+- batch Clean works
+- React Test Data page works
+- cleanup uses TestRun.BaseUrlSnapshot
+- cleanup calls the real OffenderWatch API
+- seed-protection guards exist
+- Cleaned records remain persisted as history
+- CleanupFailed can be retried
+- already-absent owned data is handled safely
+- cleanup does not remove history/evidence
+- deterministic backend tests pass
+- dotnet build passes
+- dotnet test passes
+- npm run build passes
+- at least one real owned Offender lifecycle is verified end-to-end
+- LocationPoint lifecycle is verified if existing automation safely creates one
+- original seeded data remains unaffected
+- existing Parts 1–4 remain unaffected
+
+After verification:
+
+Update PART5_PLAN.md:
+
+- Step 7 -> DONE
+- TM-06 -> DONE
+- Current Step -> Awaiting review
+
+STOP.
+
+Do not begin Step 8.
 
 ## Step 8 — Dynamic Dashboard
 
@@ -4574,8 +5588,7 @@ Verify:
 
 # 10. Current Step
 
-CURRENT STEP: Awaiting review / Step 6 (Test History & Evidence / TM-04 +
-TM-08) is DONE and verified — see the Step 6 section above. Steps 1–5
-remain DONE.
+CURRENT STEP: Awaiting review / Step 7 (Test Data Lifecycle / TM-06) is
+DONE and verified — see the Step 7 section above. Steps 1–6 remain DONE.
 
-Do not implement Step 7 or later without review.
+Do not implement Step 8 or later without review.

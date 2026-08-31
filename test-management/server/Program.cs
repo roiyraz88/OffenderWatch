@@ -73,6 +73,12 @@ builder.Services.AddHostedService<RunExecutionBackgroundService>();
 // TM-04 (Step 6, Part A) — derived, read-only; no execution-side state.
 builder.Services.AddScoped<ITestHistoryService, TestHistoryService>();
 
+// TM-06 (Step 7) — cleanup calls the real target OffenderWatch API through
+// a plain HttpClient from the standard factory; no fixed BaseAddress here
+// since the target varies per TestRun (its own BaseUrlSnapshot).
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<ITestDataService, TestDataService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -100,6 +106,8 @@ app.UseExceptionHandler(errorApp =>
             RunConflictException ex => (StatusCodes.Status409Conflict, "Conflict", ex.Message),
             ScenarioResultNotFoundException ex => (StatusCodes.Status404NotFound, "Not found", ex.Message),
             TestCaseNotFoundException ex => (StatusCodes.Status404NotFound, "Not found", ex.Message),
+            TestDataRecordNotFoundException ex => (StatusCodes.Status404NotFound, "Not found", ex.Message),
+            TestDataValidationException ex => (StatusCodes.Status400BadRequest, "Validation failed", ex.Message),
             _ => (StatusCodes.Status500InternalServerError, "Unexpected error", "An unexpected error occurred."),
         };
 

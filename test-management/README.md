@@ -1,14 +1,14 @@
 # OffenderWatch — Test Management Platform (Part 5)
 
-Status: **Step 6 — Test History & Evidence** (TM-04 + TM-08) done.
+Status: **Step 7 — Test Data Lifecycle** (TM-06) done.
 See [`PART5_PLAN.md`](../PART5_PLAN.md) at the repo root for the full
 implementation plan and current step.
 
 TM-01 (Environment configuration), TM-02 (real run execution), TM-03 (live
-SignalR progress), TM-04 (test history/regression/recovery/flakiness), and
-TM-08 (evidence capture/retrieval) are fully working end-to-end. Test-data
-cleanup (TM-06) and the dynamic dashboard (TM-07) are not implemented yet —
-see `PART5_PLAN.md`'s Step 7–8 sections.
+SignalR progress), TM-04 (test history), TM-06 (test-data ownership +
+cleanup), and TM-08 (evidence capture/retrieval) are fully working
+end-to-end. The dynamic dashboard (TM-07) is not implemented yet — see
+`PART5_PLAN.md`'s Step 8 section.
 
 ## Structure
 
@@ -401,6 +401,143 @@ is offered as a download link.
 their evidence. Cancelling a Run marks only still-Queued/Running scenarios
 Cancelled (Step 4) and never removes evidence already registered for
 scenarios that finished before the Stop.
+
+## Test data lifecycle (TM-06 / Step 7)
+
+**Ownership is explicit, never inferred.** A `TestDataRecord` exists only
+because a real automation scenario's own confirmed creation was reported
+through the `OW_EVENT` stream — never because a National ID happened to
+start with `AUTO`, never by scanning the target app and guessing. `AUTO` is
+retained purely as a *second, additional* safety check applied at cleanup
+time (see Seed protection below), not as the ownership mechanism itself.
+
+**Runner event**: one more `OW_EVENT` type, `test_data_created` — the
+top-level `ExternalId` keeps its established meaning (the *creating
+scenario's* stable identity, same as every other event); the created
+target entity itself is described by three new fields kept deliberately
+separate (`entityType`, `entityExternalId`, `entityIdentifier`) so the two
+concepts never collide in the JSON. For an `Offender`, `entityExternalId`
+is the real numeric id the target app returned; `entityIdentifier` is its
+National ID. A `LocationPoint`'s create response carries no id at all
+(verified live against the real API: `POST .../locations` returns just
+`{"ok":true}`) — `entityExternalId` is correctly `null`, and
+`entityIdentifier` carries only safe context (`offenderId=<id>`) for
+inspection.
+
+**How each suite detects creation, without touching test semantics:**
+- **pytest** (`automation/api/test_data_capture.py`): a second, independent
+  response hook on the same shared `session` fixture evidence capture
+  already uses — it recognizes a successful `POST /api/offenders` or
+  `POST /api/offenders/{id}/locations` purely from the target app's own
+  response, and `ow_event_reporter.py`'s `_finish()` emits
+  `test_data_created` for whatever it captured, regardless of the
+  scenario's pass/fail status (a defect-confirming "should have been
+  rejected but wasn't" failure is exactly the case that most needs
+  tracking). No pytest test file was touched.
+- **Playwright** (`automation/ui/reporters/test-data-capture.js`): a
+  Reporter runs in a different OS process than the actual test code, so
+  there is no shared in-memory hook to lean on the way pytest's `session`
+  allows. `testInfo.attach()` is Playwright's own sanctioned worker→reporter
+  channel; `registerOffenderCreated(testInfo, {...})` attaches a small JSON
+  payload immediately after the target app's own response confirms
+  creation, and `ow-event-reporter.js`'s `onTestEnd` reads it back and
+  emits the same `test_data_created` contract. This required one additive
+  call each in `fr03-create-validation.spec.js` and
+  `fr10-location-validation.spec.js` — at their pre-existing
+  "found real created items, about to clean them up" points — the minimal
+  explicit-registration fallback the plan anticipates when centralized,
+  test-file-free interception genuinely isn't available (unlike pytest's
+  `session` hook). No assertion or test semantics changed.
+
+**Attribution** (`RunOrchestrator.HandleTestDataCreatedAsync`): `TestRunId`
+is always correct — the event physically arrived on *this run's own* piped
+child-process stdout, nothing else could have produced it. `ScenarioResultId`
+is attached "where available" and left `null` rather than guessed if the
+reporting scenario can't be resolved for this run.
+
+**Cleanup** (`TestDataService`) never scans or re-reads the current
+Environment. The browser sends only a `TestDataRecord` id (or an explicit
+list of ids — an empty list is a validation error, never "clean
+everything"); the backend resolves the real target id and the target URL
+entirely server-side from that row and its owning `TestRun.BaseUrlSnapshot`
+— the immutable snapshot frozen at Run creation (Step 3), never a live
+re-read of the Environment, so cleanup still targets the right place even
+if that Environment was later edited or deleted (verified live — see
+`PART5_PLAN.md`'s Step 7 section).
+
+**Delete response mapping** — verified directly against the real target
+API before assuming anything: `DELETE /api/offenders/{id}` returns **204**
+on a genuine delete; a delete of an already-gone or unknown id reliably
+returns **404** (this is the one *reliable* "gone" signal the app
+provides — its `GET /api/offenders/{id}` is not reliable for this, since it
+returns 200 for an unknown id too, the same behavior as known defect
+BUG-012). So:
+- 204 or 200 → `Cleaned`, `CleanedAtUtc` set (deleted now).
+- 404 → `Cleaned`, `CleanedAtUtc` set (confirmed already gone — 7.12).
+- anything else (5xx, other 4xx, timeout, connection failure) →
+  `CleanupFailed`, never treated as "gone".
+
+**LocationPoint cleanup is not supported, and this is by design, not an
+oversight.** Inspecting the real target API (its own swagger contract, plus
+a live, disposable-offender probe performed during this step) confirmed
+two things: there is **no endpoint at all** to delete an individual
+location point, and **deleting the parent Offender does not cascade-delete
+its trail data either** — a location point created against offender 554
+was still fully retrievable via `GET /api/offenders/554/trail` *after*
+that offender was deleted (204) — this is a real, previously-undocumented
+mechanism behind BUG-015 ("`totalLocationPoints` doesn't decrease after
+deletion"): the trail rows are never actually removed by anything the API
+exposes. `TestDataService` reflects this honestly — a `LocationPoint`
+record's cleanup is always refused (`CleanupFailed`, with a clear reason
+logged) *before* attempting any HTTP call, rather than fabricating a
+success or calling an endpoint that doesn't exist. `LocationPoint` records
+are still registered and shown for ownership/audit visibility (7.3
+explicitly permits this for "inspection" purposes even without a real
+cleanup path).
+
+**Seed protection — defense in depth (7.9).** Two independent conditions
+must *both* hold before any destructive call is made against an `Offender`:
+(1) an explicit `TestDataRecord` row exists (the primary, and only real,
+ownership mechanism), **and** (2) that row's own `Identifier` starts with
+`AUTO` — a second, additional guard, checked only after ownership is
+already established, never as a substitute for it. A record that fails
+either check is refused with `CleanupFailed` and the destructive call is
+never attempted — verified directly against real data during this step's
+verification (a genuinely-owned record whose National ID happened not to
+be `AUTO`-prefixed, from `test_create_offender_rejects_duplicate_national_id`'s
+duplicate-id scenario, was correctly refused).
+
+**Retry / already-cleaned**: `CleanupFailed` → `Cleaned` on a later retry
+is a normal, supported transition. An already-`Cleaned` record is a no-op
+on a repeat clean request — it never re-issues the DELETE call.
+
+**History/evidence independence (7.19)**: cleaning a `TestDataRecord`
+touches only the target application entity (or, when it fails safely,
+nothing at all). It never deletes the `TestDataRecord` row itself (that
+row is retained permanently as ownership/audit history — 7.11), and never
+touches `TestRun`/`TestCase`/`ScenarioResult`/`EvidenceArtifact` rows or
+files. Verified directly (`PART5_PLAN.md`'s Step 7 section) — a Run's full
+scenario history and evidence were re-fetched and found unchanged after
+cleaning every eligible record from that Run.
+
+**`GET /api/test-data`** supports optional `status`/`entityType`/`runId`
+query filters. **`POST /api/test-data/{id}/clean`** cleans one record.
+**`POST /api/test-data/clean`** takes an explicit `{"ids": [...]}` list
+(LocationPoints are always processed ahead of Offenders in a batch — 7.14 —
+though this only matters for consistent ordering, since LocationPoint
+cleanup itself is always refused); each id is processed independently, so
+one failure never hides another's success.
+
+**Legacy vs. platform cleanup**: `automation/api/cleanup_test_data.py`
+remains exactly what it always was — a standalone developer/maintenance
+convenience that finds every `AUTO`-prefixed offender on the live demo app
+and deletes it, with **no ownership tracking, no Run/Scenario attribution,
+and no relationship to SQLite at all**. It is not run automatically after
+a Part 5 Run (doing so would defeat the point of TM-06 — there would be
+nothing left in the Test Data page to demonstrate tracking or cleaning
+through the platform). TM-06 is the real, tracked, auditable, run-scoped
+mechanism; the legacy script stays only as a manual "tidy the shared demo
+app" utility, unrelated to Part 5.
 
 ## Regression/Recovery demonstration (6.27)
 

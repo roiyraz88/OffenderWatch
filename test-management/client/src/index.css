@@ -185,6 +185,18 @@ table.env-table tr.run-row:hover {
   background: #777;
 }
 
+.status-active {
+  background: #2670c9;
+}
+
+.status-cleaned {
+  background: #2a7;
+}
+
+.status-cleanupfailed {
+  background: #c33;
+}
+
 dl.run-meta {
   display: grid;
   grid-template-columns: max-content 1fr;

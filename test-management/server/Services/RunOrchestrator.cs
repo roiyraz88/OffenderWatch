@@ -305,6 +305,9 @@ public class RunOrchestrator
             case "artifact_created":
                 await HandleArtifactCreatedAsync(evt);
                 break;
+            case "test_data_created":
+                await HandleTestDataCreatedAsync(evt);
+                break;
             // "suite_finished" carries no per-scenario state to persist;
             // the caller already recorded that it was observed.
         }
@@ -494,6 +497,44 @@ public class RunOrchestrator
         ".log" or ".txt" => "text/plain",
         _ => "application/octet-stream",
     };
+
+    /// <summary>
+    /// TM-06 (7.4) — explicit ownership only: this record exists solely
+    /// because *this run's own child process* reported creating it on its
+    /// own stdout stream (never inferred by scanning the target app or by
+    /// naming convention). TestRunId is always correct — this event
+    /// physically arrived through this run's own piped process output.
+    /// ScenarioResultId is attached "where available" (7.4) and left null
+    /// rather than guessed if the reporting scenario can't be resolved.
+    /// </summary>
+    private async Task HandleTestDataCreatedAsync(OwEvent evt)
+    {
+        if (evt.ExternalId is null || evt.EntityType is null)
+        {
+            _logger.LogWarning("Run {RunId}: test_data_created missing ExternalId/EntityType — ignored", _runId);
+            return;
+        }
+
+        if (!Enum.TryParse<TestDataEntityType>(evt.EntityType, ignoreCase: true, out var entityType))
+        {
+            _logger.LogWarning("Run {RunId}: test_data_created had an unrecognized entityType '{EntityType}' — ignored", _runId, evt.EntityType);
+            return;
+        }
+
+        var scenarioResult = await FindScenarioResultAsync(evt.ExternalId);
+
+        _db.TestDataRecords.Add(new TestDataRecord
+        {
+            TestRunId = _runId,
+            ScenarioResultId = scenarioResult?.Id,
+            EntityType = entityType,
+            ExternalId = evt.EntityExternalId,
+            Identifier = evt.EntityIdentifier,
+            CreatedAtUtc = DateTime.UtcNow,
+            CleanupStatus = TestDataCleanupStatus.Active,
+        });
+        await _db.SaveChangesAsync(CancellationToken.None);
+    }
 
     private Task<ScenarioResult?> FindScenarioResultAsync(string? externalId)
     {

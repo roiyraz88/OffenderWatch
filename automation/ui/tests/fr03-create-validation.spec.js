@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { OffenderListPage } = require('../pages/OffenderListPage');
+const { registerOffenderCreated } = require('../reporters/test-data-capture');
 
 function uniqueId() {
   return `AUTO${Date.now()}`;
@@ -8,7 +9,7 @@ function uniqueId() {
 // FR-03: create requires first/last name + unique national ID + past DOB;
 // invalid input must be rejected with nothing saved.
 
-test('FR-03 / TC-003A — create offender with fully valid data succeeds', async ({ page, request, baseURL }) => {
+test('FR-03 / TC-003A — create offender with fully valid data succeeds', async ({ page, request, baseURL }, testInfo) => {
   const list = new OffenderListPage(page);
   await list.goto();
   const nid = uniqueId();
@@ -34,12 +35,15 @@ test('FR-03 / TC-003A — create offender with fully valid data succeeds', async
     const res = await request.get(`${baseURL}/api/offenders`, { params: { search: lastName, pageSize: 10 } });
     const { items } = await res.json();
     for (const o of items) {
+      // Registered right where its real, target-app-confirmed existence is
+      // known — before this test's own cleanup deletes it (Step 7 / TM-06).
+      await registerOffenderCreated(testInfo, o);
       await request.delete(`${baseURL}/api/offenders/${o.id}`);
     }
   }
 });
 
-test('FR-03 / TC-003B — creation is rejected when Last Name is empty [BUG-002]', async ({ page, request, baseURL }) => {
+test('FR-03 / TC-003B — creation is rejected when Last Name is empty [BUG-002]', async ({ page, request, baseURL }, testInfo) => {
   const list = new OffenderListPage(page);
   await list.goto();
   const nid = uniqueId();
@@ -58,12 +62,13 @@ test('FR-03 / TC-003B — creation is rejected when Last Name is empty [BUG-002]
     const res = await request.get(`${baseURL}/api/offenders`, { params: { search: nid, pageSize: 10 } });
     const { items } = await res.json();
     for (const o of items) {
+      await registerOffenderCreated(testInfo, o);
       await request.delete(`${baseURL}/api/offenders/${o.id}`);
     }
   }
 });
 
-test('FR-03 / TC-003D — creation is rejected for a duplicate National ID [BUG-014]', async ({ page, request, baseURL }) => {
+test('FR-03 / TC-003D — creation is rejected for a duplicate National ID [BUG-014]', async ({ page, request, baseURL }, testInfo) => {
   const list = new OffenderListPage(page);
   await list.goto();
 
@@ -84,6 +89,7 @@ test('FR-03 / TC-003D — creation is rejected for a duplicate National ID [BUG-
       },
     })
   ).json();
+  await registerOffenderCreated(testInfo, original);
 
   try {
     const modal = await list.openAddOffenderModal();
@@ -105,13 +111,14 @@ test('FR-03 / TC-003D — creation is rejected for a duplicate National ID [BUG-
     const res = await request.get(`${baseURL}/api/offenders`, { params: { search: 'Licate', pageSize: 50 } });
     const { items } = await res.json();
     for (const o of items) {
+      await registerOffenderCreated(testInfo, o);
       await request.delete(`${baseURL}/api/offenders/${o.id}`);
     }
     await request.delete(`${baseURL}/api/offenders/${original.id}`);
   }
 });
 
-test('FR-03 / TC-003E — creation is rejected for a future Date of Birth [BUG-003]', async ({ page, request, baseURL }) => {
+test('FR-03 / TC-003E — creation is rejected for a future Date of Birth [BUG-003]', async ({ page, request, baseURL }, testInfo) => {
   const list = new OffenderListPage(page);
   await list.goto();
   const lastName = `Future${Date.now() % 100000}`;
@@ -138,6 +145,7 @@ test('FR-03 / TC-003E — creation is rejected for a future Date of Birth [BUG-0
     const res = await request.get(`${baseURL}/api/offenders`, { params: { search: lastName, pageSize: 10 } });
     const { items } = await res.json();
     for (const o of items) {
+      await registerOffenderCreated(testInfo, o);
       await request.delete(`${baseURL}/api/offenders/${o.id}`);
     }
   }

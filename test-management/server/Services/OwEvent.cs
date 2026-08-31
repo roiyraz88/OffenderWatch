@@ -38,6 +38,15 @@ public class OwEvent
     public string? ArtifactType { get; set; }
     public string? Path { get; set; }
     public string? ContentType { get; set; }
+
+    // test_data_created (Step 7 / 7.3) — ExternalId above stays the
+    // *creating scenario's* stable identity (same meaning as every other
+    // event); these three describe the created target-application entity
+    // itself, deliberately named apart from ExternalId to avoid conflating
+    // "which test created this" with "what was created".
+    public string? EntityType { get; set; }
+    public string? EntityExternalId { get; set; }
+    public string? EntityIdentifier { get; set; }
 }
 
 public static class OwEventParser

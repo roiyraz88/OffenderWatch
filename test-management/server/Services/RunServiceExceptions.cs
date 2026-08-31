@@ -32,3 +32,19 @@ public class TestCaseNotFoundException : Exception
     {
     }
 }
+
+/// <summary>Requested TestDataRecord does not exist. Maps to 404.</summary>
+public class TestDataRecordNotFoundException : Exception
+{
+    public TestDataRecordNotFoundException(int id) : base($"TestDataRecord {id} was not found.")
+    {
+    }
+}
+
+/// <summary>An invalid TM-06 cleanup request, e.g. an empty batch id list. Maps to 400.</summary>
+public class TestDataValidationException : Exception
+{
+    public TestDataValidationException(string message) : base(message)
+    {
+    }
+}

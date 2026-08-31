@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { OffenderListPage } = require('../pages/OffenderListPage');
 const { OffenderDetailPage } = require('../pages/OffenderDetailPage');
+const { registerOffenderCreated } = require('../reporters/test-data-capture');
 
 // FR-10: signal must be within 1-5. Invalid values must be rejected with a
 // clear message and nothing saved.
@@ -18,7 +19,7 @@ test('FR-10 / TC-010E — signal outside 1-5 is rejected without saving a point 
   page,
   request,
   baseURL,
-}) => {
+}, testInfo) => {
   const nationalId = `AUTO${Date.now()}`;
   const created = await (
     await request.post(`${baseURL}/api/offenders`, {
@@ -32,6 +33,15 @@ test('FR-10 / TC-010E — signal outside 1-5 is rejected without saving a point 
       },
     })
   ).json();
+  await registerOffenderCreated(testInfo, created);
+  // Note (Step 7 / TM-06): the invalid location POST itself is not
+  // registered as a LocationPoint here — this test's own real assertion
+  // (`countAfter === countBefore`) is the evidence that, through this UI
+  // flow, no location point is actually persisted; there is nothing to
+  // own. See test-management/README.md's Test Data Lifecycle section for
+  // the fuller picture (the API suite's disposable_offender path DOES
+  // observe the target app accepting an invalid location — BUG-007 — and
+  // registers that one centrally).
 
   try {
     const list = new OffenderListPage(page);
