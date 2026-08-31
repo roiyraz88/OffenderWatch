@@ -10,6 +10,8 @@ automation/api/results/
 # Part 5 — test-management platform
 test-management/server/bin/
 test-management/server/obj/
+test-management/server.Tests/bin/
+test-management/server.Tests/obj/
 test-management/client/node_modules/
 test-management/client/dist/
 test-management/client/.env.local

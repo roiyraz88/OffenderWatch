@@ -153,7 +153,7 @@ test-management/
 
 | Requirement | Description | Status |
 |---|---|---|
-| TM-01 | Environment configuration | Planned |
+| TM-01 | Environment configuration | DONE |
 | TM-02 | Run execution & management | Planned |
 | TM-03 | Real-time progress | Planned |
 | TM-04 | Test history | Planned |
@@ -829,11 +829,621 @@ Exact schema and relationships will be defined before implementation.
 
 ---
 
-## Step 3 — Environment Management
+## Step 3 — Environment Management (TM-01)
 
-Implement TM-01.
+**STATUS: DONE (2026-08-31). TM-01 -> DONE.**
 
-Details will be defined before implementation.
+Implemented the full vertical slice (React -> EnvironmentController ->
+EnvironmentService -> TestManagementDbContext -> SQLite) exactly per 3.1–3.10.
+First confirmed Steps 1–2 were still intact (`dotnet build` + `npm run build`
+clean before starting).
+
+Files added:
+
+- `DTOs/EnvironmentDtos.cs` — `EnvironmentResponseDto`,
+  `CreateEnvironmentRequest`, `UpdateEnvironmentRequest`. No EF entity is
+  ever returned from the API.
+- `Services/IEnvironmentService.cs` / `EnvironmentService.cs` — owns every
+  rule in 3.3/3.4/3.5. Validation and the default-Environment invariants
+  live here, not in the controller or the frontend.
+- `Services/EnvironmentServiceExceptions.cs` —
+  `EnvironmentValidationException` (400), `EnvironmentNotFoundException`
+  (404), `EnvironmentConflictException` (409, duplicate name).
+- `Controllers/EnvironmentController.cs` — the 6 required endpoints, thin
+  (no logic beyond calling the service and shaping the HTTP response).
+- `Program.cs` — registered `IEnvironmentService`; added a small
+  `UseExceptionHandler` block that maps the three exception types above to
+  their status codes in one place (`{ title, status, detail }` JSON body)
+  instead of try/catch in every controller action.
+- `client/src/types/environment.ts`, `client/src/api/environments.ts` — the
+  typed API layer (3.9): `getEnvironments`, `getEnvironment`,
+  `createEnvironment`, `updateEnvironment`, `deleteEnvironment`,
+  `setDefaultEnvironment`, all through `VITE_API_BASE_URL`.
+- `client/src/api/client.ts` — extended with `apiRequest<T>()` (shared fetch
+  wrapper, parses the backend's `{title,status,detail}` body on error) and
+  `ApiError`.
+- `client/src/components/EnvironmentFormModal.tsx` — the Add/Edit form
+  (3.7). Client-side checks are a convenience; the server's own validation
+  message is what's shown on rejection.
+- `client/src/pages/EnvironmentsPage.tsx` — the full page (3.6/3.8/3.10):
+  table (Name / Base URL / Default badge / Actions), loading state, an
+  error banner with Retry for a failed initial load, a separate
+  action-error banner for failed create/update/delete/set-default,
+  `window.confirm("Delete environment '<name>'?")` before deleting, and a
+  refresh-triggering reload after every mutation.
+- `test-management/server.Tests/` (new xUnit project, sibling to `server/`,
+  not nested inside the plan's original layout — kept separate so the main
+  project's own build/publish never picks up test code) —
+  `EnvironmentServiceTests.cs`, 13 tests (6 required by 3.13 plus a few
+  extra edge cases folded into the same file, e.g. a `[Theory]` covering 4
+  distinct invalid-BaseUrl shapes). Each test gets its own throwaway SQLite
+  file under the OS temp dir (`EnsureCreated()`, not migrations — fine for
+  an isolated test schema), created and deleted per test; never touches
+  `test-management/data/testmanagement.db` or any Part 3 OffenderWatch data.
+
+Design decisions / deviations:
+
+- **Transactions**: `Create` (when explicitly requesting default on a
+  non-first environment), `Delete` (when it was the default and a
+  replacement is promoted), and `SetDefault` each wrap their unset+set (or
+  delete+promote) in `Database.BeginTransactionAsync()` — 3.4 rule 4
+  ("changing the default must be atomic") and 3.4 rule 6 together.
+- **Delete-behavior reuse from Step 2**: deleting an Environment relies
+  entirely on the FK's existing `ON DELETE SET NULL` (Step 2) plus the
+  snapshot fields already frozen on each TestRun at creation time — the
+  delete path never touches `TestRuns` directly, exactly as 3.5 specifies.
+- **Uniqueness**: case-insensitive via `Name.ToLower() == name.ToLower()`,
+  translated by EF's SQLite provider into SQL `lower()` — confirmed by the
+  duplicate-name test using a different case (`"staging"` vs `"Staging"`).
+- **xUnit test project location**: `test-management/server.Tests/` (sibling
+  to `server/`) rather than inside it — the Step-2-era planned tree didn't
+  include a test project since Step 2 had no service logic to test yet;
+  this is the natural place to add it now that Step 3 introduces one.
+
+STOP after Step 3. Awaiting review before Step 4 (Run Management &
+Automation Integration).
+
+Verified — Backend (3.12 items 1–2 + the bullet list):
+
+- `dotnet build` (server) — 0 warnings, 0 errors.
+- Started the API against a **fresh** migrated SQLite DB (deleted, then
+  `dotnet ef database update`) and drove the full checklist with `curl`:
+  - `POST` env #1 with no `isDefault` → created **with `isDefault: true`**
+    (auto-default rule).
+  - `POST` env #2 with no `isDefault` → created `isDefault: false`; #1
+    unchanged.
+  - `PUT /2/default` → #2 becomes default; `GET` list shows exactly one
+    `isDefault: true`.
+  - `POST` a duplicate name (different case, `"staging"` vs `"Staging"`) →
+    **409**, `{"title":"Conflict",...}`.
+  - `POST` an invalid `baseUrl` (`"not-a-url"`) → **400**,
+    `{"title":"Validation failed",...}`.
+  - `PUT /1` renaming + changing the URL → 200, persisted (`GET /1`
+    reflects the new values).
+  - `GET /999` → **404**, `{"title":"Not found",...}`.
+  - Created a 3rd environment, then: delete the non-default one → 204, the
+    other two unaffected; delete the (now) default one while one remains →
+    204, the remaining environment is **automatically promoted** to
+    default; delete the final environment → 204, `GET` list returns `[]`
+    (zero environments, zero defaults — valid per rule 7).
+- **Directly in SQLite** (not just via the API): created environments A, B
+  (`isDefault: true` on create), C — queried
+  `SELECT COUNT(*) FROM Environments WHERE IsDefault=1` → **1**, confirming
+  no operation sequence ever produces more than one default row.
+- `dotnet test` (`server.Tests`) — **13/13 passed**.
+
+Verified — Frontend (3.12 items 3–6):
+
+- `npm run build` (`tsc -b && vite build`) — clean, no type errors. (One
+  fix needed: `ApiError`'s constructor originally used a TS parameter
+  property, which this project's `erasableSyntaxOnly` tsconfig setting
+  rejects — rewritten as a plain field assignment.)
+- Ran the API (`dotnet run`, `:5174`) and the Vite dev server (`npm run
+  dev`, `:5173`) together and drove the real page in a real Chromium
+  browser (Playwright, reusing the Part 3 UI suite's existing install —
+  the driver script was a throwaway, deleted after, not part of any
+  deliverable):
+  - Add "Dev" with no default checked → row appears, **Default badge**
+    shown (first-environment rule, confirmed in the actual UI this time,
+    not just the API).
+  - Add "Staging" → 2 rows.
+  - Attempt to add "staging" (duplicate, different case) → form stays
+    open, shows the server's own message: *"An environment named 'staging'
+    already exists."*
+  - Click **Set default** on Staging → Staging gets the badge, Dev loses
+    it.
+  - Edit "Dev" → "Dev Renamed" → table updates.
+  - **Reload the browser page** → both rows still present, Staging still
+    shows Default — confirms persistence survives a refresh (3.12 item 6).
+  - Click **Delete** on "Dev Renamed" → native confirm dialog reads
+    exactly *"Delete environment 'Dev Renamed'?"*, accepted → row count
+    drops to 1.
+- Environment/Runs/Tests/Test-data nav and the dashboard health indicator
+  from Step 1 were not touched — Runs/Tests/Test-data pages remain
+  placeholders per the 3.11 scope boundary.
+
+Not implemented (correctly, per the 3.11 scope boundary): Start/Stop Run,
+any Playwright/pytest execution, ScenarioResults, SignalR streaming,
+history calculations, evidence capture, test-data cleanup, dynamic
+dashboard statistics.
+
+Housekeeping: deleted the dev SQLite DB and its `-shm`/`-wal` files after
+verification (same reasoning as Step 2 — no real run data yet, nothing
+meaningful to commit before Step 9).
+
+---
+
+### Step 3 spec (as implemented, kept verbatim below for reference)
+
+Status: READY FOR IMPLEMENTATION
+
+### Goal
+
+Implement TM-01 Environment Configuration as the first complete
+end-to-end Part 5 feature.
+
+The user must be able to manage target OffenderWatch environments
+through the React UI.
+
+Flow:
+
+React
+  |
+  v
+EnvironmentController
+  |
+  v
+EnvironmentService
+  |
+  v
+TestManagementDbContext
+  |
+  v
+SQLite
+
+This step implements Environment management only.
+
+Do not implement test-run execution yet.
+
+---
+
+### 3.1 Environment API
+
+Create:
+
+- EnvironmentController
+- EnvironmentService
+- Environment DTOs
+
+Do not expose EF entities directly from the API.
+
+Use DTOs for requests and responses.
+
+Required endpoints:
+
+GET /api/environments
+
+Returns all active environments.
+
+GET /api/environments/{id}
+
+Returns one environment.
+
+POST /api/environments
+
+Creates an environment.
+
+PUT /api/environments/{id}
+
+Updates an environment.
+
+DELETE /api/environments/{id}
+
+Deletes an environment.
+
+PUT /api/environments/{id}/default
+
+Marks the selected environment as the default.
+
+Use appropriate HTTP status codes:
+
+- 200
+- 201
+- 204
+- 400
+- 404
+- 409 where appropriate
+
+---
+
+### 3.2 DTOs
+
+Create simple DTOs such as:
+
+EnvironmentResponseDto
+
+Fields:
+
+- Id
+- Name
+- BaseUrl
+- IsDefault
+- CreatedAtUtc
+- UpdatedAtUtc
+
+CreateEnvironmentRequest
+
+Fields:
+
+- Name
+- BaseUrl
+- IsDefault
+
+UpdateEnvironmentRequest
+
+Fields:
+
+- Name
+- BaseUrl
+
+Do not allow clients to directly control persistence-only fields such as
+CreatedAtUtc or UpdatedAtUtc.
+
+Default selection should primarily be handled through:
+
+PUT /api/environments/{id}/default
+
+If IsDefault is accepted during creation, it must still follow all
+default-environment invariants.
+
+---
+
+### 3.3 Validation
+
+Environment Name:
+
+- required
+- trim whitespace
+- cannot be empty after trimming
+- must be unique
+- uniqueness should be treated case-insensitively if practical with SQLite
+
+BaseUrl:
+
+- required
+- trim whitespace
+- must be a valid absolute HTTP or HTTPS URL
+- reject relative URLs
+- reject unsupported schemes
+- normalize obvious trailing whitespace
+- do not hard-code OffenderWatch-specific URLs
+
+Return useful validation errors.
+
+Do not rely only on frontend validation.
+
+The backend is the source of truth.
+
+---
+
+### 3.4 Default Environment Rules
+
+The system must maintain a clear default Environment.
+
+Rules:
+
+1. If the first Environment is created, it becomes default automatically.
+
+2. If a new Environment is explicitly created as default:
+   - unset the previous default
+   - set the new Environment as default
+
+3. PUT /api/environments/{id}/default:
+   - unset the existing default
+   - mark the selected Environment as default
+
+4. Changing the default must be atomic.
+
+5. There must never be more than one default Environment.
+
+6. If non-default Environments exist, deleting the current default
+   must select another remaining Environment as the new default.
+
+7. If the final Environment is deleted, zero default Environments is
+   valid because no Environments remain.
+
+Do not attempt to enforce this only in React.
+
+The EnvironmentService must enforce these rules.
+
+Use a database transaction where multiple Environment records are
+changed as one operation.
+
+---
+
+### 3.5 Environment Deletion & Historical Runs
+
+Environment deletion is allowed.
+
+Existing historical TestRuns must survive.
+
+The Step 2 relationship already uses SET NULL for:
+
+Environment -> TestRun
+
+and TestRun stores:
+
+- EnvironmentNameSnapshot
+- BaseUrlSnapshot
+
+Therefore deleting an Environment must:
+
+- remove the Environment
+- leave historical TestRuns intact
+- set their EnvironmentId to null through the configured FK behavior
+- preserve their environment snapshots
+
+Do not manually delete or modify historical TestRuns.
+
+---
+
+### 3.6 Environment React Page
+
+Implement the existing:
+
+/environments
+
+route as a functional page.
+
+The page must load Environments from the API.
+
+Display at least:
+
+- Name
+- Base URL
+- Default status
+- Actions
+
+Actions:
+
+- Add
+- Edit
+- Delete
+- Set as Default
+
+The currently default Environment must be clearly identifiable.
+
+Example concept:
+
+Environments
+
+--------------------------------------------------
+Name       Base URL                    Default
+--------------------------------------------------
+Demo       https://example.com/demo    Default
+Staging    https://example.com/stg
+
+Actions:
+Edit | Delete | Set Default
+
+Do not hard-code environment rows.
+
+All displayed data must come from the API.
+
+---
+
+### 3.7 Create / Edit UI
+
+Provide a simple form or modal for creating and editing an Environment.
+
+Fields:
+
+- Name
+- Base URL
+
+For creation, optionally allow:
+
+- Make Default
+
+Frontend validation should provide immediate feedback for obvious
+missing fields.
+
+Backend validation remains authoritative.
+
+Keep the UI simple and professional.
+
+Do not add a large UI framework unless already necessary.
+
+---
+
+### 3.8 Delete UI
+
+Deleting an Environment must require confirmation.
+
+Example:
+
+"Delete environment 'Staging'?"
+
+If deleting the default Environment while others exist, the backend
+will automatically choose another remaining Environment as default.
+
+After deletion:
+
+- refresh/update the Environment list
+- show the new default correctly
+
+Do not implement historical run UI in this step.
+
+---
+
+### 3.9 API Client
+
+Create a small typed frontend API layer under:
+
+client/src/api/
+
+Do not scatter raw fetch calls throughout React components.
+
+Environment API functions should include the equivalent of:
+
+- getEnvironments()
+- getEnvironment(id)
+- createEnvironment(...)
+- updateEnvironment(...)
+- deleteEnvironment(id)
+- setDefaultEnvironment(id)
+
+Use the existing:
+
+VITE_API_BASE_URL
+
+configuration.
+
+Do not hard-code the backend URL.
+
+---
+
+### 3.10 Error & Loading States
+
+The Environment page must handle:
+
+- initial loading
+- API unavailable
+- validation error
+- duplicate name
+- not found
+- delete failure
+- successful create/update/delete/default change
+
+Do not silently swallow API errors.
+
+Keep feedback simple.
+
+---
+
+### 3.11 Scope Boundary
+
+Step 3 DOES NOT implement:
+
+- Start Run
+- Stop Run
+- Playwright execution
+- pytest execution
+- scenario results
+- SignalR execution streaming
+- history calculations
+- evidence capture
+- test data cleanup
+- dynamic dashboard statistics
+
+The Runs, Tests and Test Data pages remain placeholders.
+
+Dashboard remains only the Step 1 health-status implementation.
+
+---
+
+### 3.12 Verification
+
+Backend:
+
+1. dotnet build
+
+2. Start the API against a fresh migrated SQLite database.
+
+Verify:
+
+- create first Environment -> automatically Default
+- create second Environment -> first remains Default
+- create/set another Environment as Default -> old one is unset
+- duplicate Name is rejected
+- invalid BaseUrl is rejected
+- edit Name/BaseUrl works
+- GET list returns persisted data
+- GET by id works
+- unknown id returns 404
+- delete non-default works
+- delete default when another Environment exists assigns a new default
+- delete final Environment leaves zero environments/defaults
+
+Verify directly in SQLite that no operation creates more than one
+IsDefault=true row.
+
+Frontend:
+
+3. Run:
+
+npm run build
+
+4. Run API + Vite together.
+
+5. Verify manually in the browser:
+
+- list
+- add
+- edit
+- delete
+- set default
+- validation/error feedback
+
+6. Refresh the browser and verify the Environment data persists.
+
+---
+
+### 3.13 Automated Backend Tests
+
+Add focused automated tests for EnvironmentService or the Environment
+API.
+
+At minimum cover:
+
+- first Environment automatically becomes default
+- only one default exists after changing default
+- duplicate name rejected
+- invalid BaseUrl rejected
+- deleting default selects another default when possible
+- deleting final Environment works
+
+Use a separate temporary/test SQLite database.
+
+Do not use or modify the real Part 3 OffenderWatch application data.
+
+These tests are tests of the Part 5 platform itself, not replacements
+for the Part 3 automation.
+
+Keep the test suite small and focused.
+
+---
+
+### Step 3 Definition of Done
+
+Step 3 is DONE only when:
+
+- Environment CRUD API works
+- default selection API works
+- backend validation works
+- only one default can exist through normal application operations
+- Environment deletion preserves historical design
+- React Environment page works against the real API
+- no Environment data is hard-coded
+- Environment data persists in SQLite
+- backend automated tests pass
+- dotnet build passes
+- npm run build passes
+- existing Parts 1-4 remain unaffected
+
+TM-01 may be marked DONE after all of the above are verified.
+
+After verification:
+
+Update PART5_PLAN.md:
+
+- Step 3 -> DONE
+- TM-01 -> DONE
+- Current Step -> Awaiting review
+
+STOP.
+
+Do not begin Step 4.
 
 ---
 
@@ -927,7 +1537,7 @@ Verify:
 
 CURRENT STEP: Awaiting review
 
-Step 2 (Domain Model & Database) is DONE and verified — see the Step 2
-section above.
+Step 3 (Environment Management / TM-01) is DONE and verified — see the
+Step 3 section above. Steps 1 and 2 remain DONE.
 
-Do not implement Step 3 or later without review.
+Do not implement Step 4 or later without review.

@@ -16,3 +16,53 @@ export async function getHealth(): Promise<HealthResponse> {
   }
   return res.json();
 }
+
+/** The { title, status, detail } shape written by the server's exception handler. */
+interface ProblemDetails {
+  title?: string;
+  status?: number;
+  detail?: string;
+}
+
+/** Thrown by {@link apiRequest} for any non-2xx response, carrying the server's own message. */
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+/**
+ * Shared fetch wrapper for every typed API module (environments.ts and
+ * later ones) — keeps error handling and JSON parsing in one place instead
+ * of scattered raw fetch() calls through components.
+ */
+export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...init?.headers,
+    },
+  });
+
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const problem = (await res.json()) as ProblemDetails;
+      detail = problem.detail ?? problem.title ?? detail;
+    } catch {
+      // response wasn't JSON — fall back to statusText above
+    }
+    throw new ApiError(res.status, detail);
+  }
+
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  return res.json();
+}

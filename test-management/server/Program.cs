@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using OffenderWatch.TestManagement.Server.Data;
+using OffenderWatch.TestManagement.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,6 +57,8 @@ var connectionString = sqliteBuilder.ToString();
 builder.Services.AddDbContext<TestManagementDbContext>(options =>
     options.UseSqlite(connectionString));
 
+builder.Services.AddScoped<IEnvironmentService, EnvironmentService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -63,6 +67,29 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+// Maps the Services-layer exceptions (Step 3.3/3.4) to HTTP status codes in
+// one place, so controllers stay thin instead of try/catching in every
+// action. Anything not one of these three is a genuine unhandled error
+// (500) — not swallowed.
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        var feature = context.Features.Get<IExceptionHandlerFeature>();
+        var (statusCode, title, detail) = feature?.Error switch
+        {
+            EnvironmentValidationException ex => (StatusCodes.Status400BadRequest, "Validation failed", ex.Message),
+            EnvironmentNotFoundException ex => (StatusCodes.Status404NotFound, "Not found", ex.Message),
+            EnvironmentConflictException ex => (StatusCodes.Status409Conflict, "Conflict", ex.Message),
+            _ => (StatusCodes.Status500InternalServerError, "Unexpected error", "An unexpected error occurred."),
+        };
+
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "application/problem+json";
+        await context.Response.WriteAsJsonAsync(new { title, status = statusCode, detail });
+    });
+});
 
 app.UseHttpsRedirection();
 
