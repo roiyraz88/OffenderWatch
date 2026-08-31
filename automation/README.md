@@ -1,9 +1,23 @@
 # OffenderWatch — Automation
 
-Automated regression suite for the OffenderWatch Monitoring Console
-(`https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie`), covering
-Part 3 of the QA assignment: UI automation (Playwright/JS) and API
+Automated regression suite for the OffenderWatch Monitoring Console,
+covering Part 3 of the QA assignment: UI automation (Playwright/JS) and API
 automation (pytest + requests).
+
+**Target URL:** neither suite hard-codes a target anymore (Part 5 / Step 4
+integration). Both read it from the `OFFENDERWATCH_BASE_URL` environment
+variable and fail immediately with a clear error if it's unset — there is
+no fallback. Set it to whichever OffenderWatch instance you're testing,
+e.g. `https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie`.
+
+Both suites also emit a machine-readable `OW_EVENT|{json}` line to stdout
+for every scenario's discovered/started/finished lifecycle event (and one
+`suite_finished` at the end) — this is what lets
+`test-management/` (the Part 5 platform) launch these exact suites and
+record real per-scenario results. It's additive: every normal
+list/HTML/JSON reporter output below is unchanged, the `OW_EVENT|` lines
+just interleave with it. See `test-management/README.md` for how the
+platform uses it.
 
 Every automated scenario traces back to a PRD requirement ID (FR-xx /
 API-xx) and, where it documents a known defect, to a Bug ID from
@@ -26,10 +40,13 @@ automation/
 cd automation/ui
 npm install
 npx playwright install chromium   # first time only
+export OFFENDERWATCH_BASE_URL=https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie
 npm test                          # runs the whole suite headless
 npm run test:headed               # watch it drive a real browser
 npm run report                    # open the last HTML report
 ```
+
+(On Windows PowerShell: `$env:OFFENDERWATCH_BASE_URL = "https://..."`.)
 
 Results also land in `results/ui-results.json` (machine-readable, used by
 the QA dashboard) and `playwright-report/` (HTML, with screenshots/traces
@@ -41,9 +58,11 @@ for every failure).
   for the offender list panel and the trail/detail panel.
 - `pages/helpers.js` — parses the app's `DD/MM/YYYY, HH:mm` display format.
 - `tests/*.spec.js` — one file per requirement area, named `frNN-*.spec.js`.
-- `playwright.config.js` — `baseURL` points at the app; one worker, no
-  retries (a red result should mean "defect confirmed," not "retry until
-  green" — retrying would hide that signal).
+- `playwright.config.js` — `baseURL` comes from `OFFENDERWATCH_BASE_URL`
+  (no fallback); one worker, no retries (a red result should mean "defect
+  confirmed," not "retry until green" — retrying would hide that signal).
+- `reporters/ow-event-reporter.js` — Part 5 integration reporter, added
+  alongside the list/HTML/JSON reporters; prints `OW_EVENT|{json}` lines.
 
 ### Scenarios (11 across 8 files)
 
@@ -73,15 +92,22 @@ in the dashboard pending that retest.
 ```bash
 cd automation/api
 pip install -r requirements.txt
+export OFFENDERWATCH_BASE_URL=https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie
 pytest -v                          # console output
 pytest -v --junitxml=results/api-results.xml   # machine-readable, for the dashboard
 ```
 
+(On Windows PowerShell: `$env:OFFENDERWATCH_BASE_URL = "https://..."`.)
+
 ### Structure
 
-- `conftest.py` — shared `session`/`base_url` fixtures and a `unique_national_id`
+- `conftest.py` — shared `session`/`base_url` fixtures (`base_url` reads
+  `OFFENDERWATCH_BASE_URL`, no fallback) and a `unique_national_id`
   generator (`AUTO<timestamp>`) so created test offenders are easy to find
-  and clean up.
+  and clean up. Also auto-loads `ow_event_reporter.py`.
+- `ow_event_reporter.py` — Part 5 integration reporter (pytest plugin);
+  prints `OW_EVENT|{json}` lines, pure hook implementations, never touches
+  test behavior/assertions.
 - `test_api01_paging_search.py` … `test_api05_stats.py` — one file per
   API-xx requirement.
 - `cleanup_test_data.py` — deletes every offender whose National ID starts

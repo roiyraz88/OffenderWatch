@@ -59,6 +59,17 @@ builder.Services.AddDbContext<TestManagementDbContext>(options =>
 
 builder.Services.AddScoped<IEnvironmentService, EnvironmentService>();
 
+// TM-02 (Step 4) — run execution. RunQueue/RunCancellationRegistry are
+// singletons shared between the HTTP-facing RunService and the background
+// worker; RunOrchestrator is Scoped so each run execution gets its own
+// DbContext (4.16) via a scope the background service creates itself.
+builder.Services.Configure<RunnerOptions>(builder.Configuration.GetSection("Runner"));
+builder.Services.AddSingleton<RunQueue>();
+builder.Services.AddSingleton<RunCancellationRegistry>();
+builder.Services.AddScoped<IRunService, RunService>();
+builder.Services.AddScoped<RunOrchestrator>();
+builder.Services.AddHostedService<RunExecutionBackgroundService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -82,6 +93,8 @@ app.UseExceptionHandler(errorApp =>
             EnvironmentValidationException ex => (StatusCodes.Status400BadRequest, "Validation failed", ex.Message),
             EnvironmentNotFoundException ex => (StatusCodes.Status404NotFound, "Not found", ex.Message),
             EnvironmentConflictException ex => (StatusCodes.Status409Conflict, "Conflict", ex.Message),
+            RunNotFoundException ex => (StatusCodes.Status404NotFound, "Not found", ex.Message),
+            RunConflictException ex => (StatusCodes.Status409Conflict, "Conflict", ex.Message),
             _ => (StatusCodes.Status500InternalServerError, "Unexpected error", "An unexpected error occurred."),
         };
 

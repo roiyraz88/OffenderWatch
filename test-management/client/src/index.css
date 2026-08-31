@@ -130,3 +130,84 @@ td.actions {
   font-size: 0.9em;
   margin: 0;
 }
+
+.start-run-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+table.env-table tr.run-row {
+  cursor: pointer;
+}
+
+table.env-table tr.run-row:hover {
+  background: rgba(127, 127, 127, 0.08);
+}
+
+.status-badge {
+  font-size: 0.8em;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.status-queued {
+  background: #888;
+}
+
+.status-running {
+  background: #2670c9;
+}
+
+.status-completed,
+.status-passed {
+  background: #2a7;
+}
+
+.status-stopped,
+.status-skipped {
+  background: #b8860b;
+}
+
+.status-failed {
+  background: #c33;
+}
+
+.status-expectedfail {
+  background: #a05fd6;
+}
+
+.status-cancelled {
+  background: #777;
+}
+
+dl.run-meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1rem;
+  max-width: 700px;
+  margin: 1rem 0 1.5rem;
+}
+
+dl.run-meta dt {
+  font-weight: 600;
+  color: #888;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+dl.run-meta dd {
+  margin: 0;
+}
+
+tr.failure-row td {
+  color: #c33;
+  font-size: 0.9em;
+  padding-top: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}

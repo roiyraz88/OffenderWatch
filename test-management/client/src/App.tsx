@@ -2,6 +2,7 @@ import { NavLink, Route, Routes } from "react-router-dom";
 import { useHealth } from "./hooks/useHealth";
 import { DashboardPage } from "./pages/DashboardPage";
 import { RunsPage } from "./pages/RunsPage";
+import { RunDetailPage } from "./pages/RunDetailPage";
 import { TestsPage } from "./pages/TestsPage";
 import { EnvironmentsPage } from "./pages/EnvironmentsPage";
 import { TestDataPage } from "./pages/TestDataPage";
@@ -35,6 +36,7 @@ function App() {
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/runs" element={<RunsPage />} />
+          <Route path="/runs/:id" element={<RunDetailPage />} />
           <Route path="/tests" element={<TestsPage />} />
           <Route path="/environments" element={<EnvironmentsPage />} />
           <Route path="/test-data" element={<TestDataPage />} />

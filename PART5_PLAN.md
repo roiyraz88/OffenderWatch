@@ -154,7 +154,7 @@ test-management/
 | Requirement | Description | Status |
 |---|---|---|
 | TM-01 | Environment configuration | DONE |
-| TM-02 | Run execution & management | Planned |
+| TM-02 | Run execution & management | DONE |
 | TM-03 | Real-time progress | Planned |
 | TM-04 | Test history | Planned |
 | TM-05 | Persistence | Planned |
@@ -1447,13 +1447,1210 @@ Do not begin Step 4.
 
 ---
 
-## Step 4 — Run Management & Automation Integration
+## Step 4 — Run Management & Automation Integration (TM-02)
 
-Implement the core of TM-02.
+**STATUS: DONE (2026-08-31). TM-02 -> DONE.**
 
-Integrate the real Part 3 suites.
+Implemented the full pipeline in 4.1–4.27, verified with a real launch of
+both real suites (not mocked, not report-file parsing). First confirmed
+Steps 1–3 were intact (`dotnet build` + `npm run build` clean before
+starting).
 
-Details will be defined before implementation.
+### Files added/changed
+
+**automation/ (minimal, integration-only — no test/assertion changes):**
+- `automation/api/conftest.py` — `base_url` now reads
+  `OFFENDERWATCH_BASE_URL`, raises immediately at collection time with no
+  fallback if unset; auto-loads the new reporter via `pytest_plugins`.
+- `automation/api/ow_event_reporter.py` (new) — pytest plugin, hook
+  implementations only (`pytest_collection_modifyitems`,
+  `pytest_runtest_logstart`, `pytest_runtest_logreport`,
+  `pytest_sessionfinish`). Extracts `BUG-\d+`/`FR|API-\d+` straight out of
+  each test's own docstring (falling back to the module docstring) — this
+  repo's actual existing "Known defect: BUG-xxx" convention, not an
+  invented field. `api::<nodeid>` as `ExternalId`.
+- `automation/ui/playwright.config.js` — `use.baseURL` now reads
+  `process.env.OFFENDERWATCH_BASE_URL`, throws immediately with no
+  fallback if unset; reporter array extended (list/html/json all
+  unchanged) with the new one.
+- `automation/ui/reporters/ow-event-reporter.js` (new) — implements
+  Playwright's Reporter interface (`onBegin`/`onTestBegin`/`onTestEnd`/
+  `onEnd`). Extracts `RequirementId`/`BugId` from this repo's existing
+  `"FR-01 / TC-... [BUG-001]"` title convention via regex.
+  `ui::<spec file>::<test title>` as `ExternalId`.
+- `automation/README.md` — documented the `OFFENDERWATCH_BASE_URL`
+  requirement (with the exact standalone command) and the new reporter
+  files in both suites' "Structure" sections.
+
+**test-management/server/:**
+- `Services/RunnerOptions.cs` — `appsettings.json`'s new `Runner` section
+  bound to a POCO; every path relative, resolved against
+  `ContentRootPath` at runtime, never a hard-coded absolute path in code.
+- `Services/OwEvent.cs` — the flexible event envelope + `OwEventParser`.
+  `TryParse` searches for `OW_EVENT|` anywhere in the line (not only at
+  its start) — real captured output showed pytest's own live "test name
+  ... PASSED" line sometimes still open when a hook fires, gluing our
+  text onto the middle of it; both emitters were also hardened to prefix
+  a leading `\n` for the same reason. A malformed line returns false, is
+  logged, never thrown — one bad line can't crash a run.
+- `Services/ScenarioClassifier.cs` — the 4.11 rules as one small pure
+  static function, extracted specifically so it's directly unit-testable
+  without spawning a runner.
+- `Services/RunQueue.cs`, `Services/RunCancellationRegistry.cs` — the
+  enqueue/cancel primitives (4.1/4.5), both singletons.
+- `Services/RunOrchestrator.cs` — the core per-run engine (Scoped, one
+  instance per run, its own `DbContext`): `RunAsync` runs pytest then
+  Playwright sequentially (4.14), each phase spawns via
+  `ProcessStartInfo`/`ArgumentList` (no shell), reads stdout+stderr through
+  a `Channel<string>` consumed by a single sequential loop (so all
+  `DbContext` writes for one phase happen on one logical thread — no
+  concurrent EF Core access), persists `scenario_discovered` /
+  `scenario_started` / `scenario_finished` as they arrive, and only trusts
+  a phase's `suite_finished` event (not `process.ExitCode`) to decide
+  "did this runner complete its lifecycle" (4.21). On cancellation:
+  `process.Kill(entireProcessTree: true)`, then every still-`Queued`/
+  `Running` `ScenarioResult` for that run is swept to `Cancelled`, and the
+  second suite is never started if the first was still running. Exposes
+  two small test seams (`ApplyEventForTestingAsync`/
+  `FinalizeForTestingAsync`) that reuse the exact same persistence/finalize
+  code paths without spawning anything, for `server.Tests`.
+- `Services/RunExecutionBackgroundService.cs` — the single `BackgroundService`
+  consumer (4.16); creates one DI scope per dequeued RunId, never holds a
+  `DbContext` across runs; a best-effort catch-all marks a run `Failed`
+  rather than leaving it stuck forever if the orchestrator itself throws.
+- `Services/IRunService.cs`/`RunService.cs` — the HTTP-facing half:
+  `CreateAsync` validates the Environment exists (404 if not), snapshots
+  its name/URL onto the new `TestRun`, registers a cancellation token
+  *before* enqueuing (so a Stop racing in immediately after Create always
+  finds a live token), and returns fast. `StopAsync` rejects an
+  already-finished run with 409, flips a still-`Queued` run directly to
+  `Stopped`, and otherwise just signals cancellation — the orchestrator
+  itself does the actual process-kill/history cleanup/finalize.
+- `Services/RunServiceExceptions.cs` — `RunNotFoundException` (404),
+  `RunConflictException` (409) — added to `Program.cs`'s existing
+  exception-to-status-code switch.
+- `DTOs/RunDtos.cs` — `RunSummaryDto`/`RunDetailDto`/`ScenarioResultDto`/
+  `CreateRunRequest`; no EF entity ever leaves the API.
+- `Controllers/RunController.cs` — the 4 endpoints (4.3–4.5).
+- `Program.cs` — DI registrations for all of the above; extended the
+  exception-mapping switch.
+- `appsettings.json` — the new `Runner` config section (4.15).
+
+**test-management/client/:**
+- `types/run.ts`, `api/runs.ts` — typed API layer, same pattern as
+  `environments.ts` from Step 3.
+- `pages/RunsPage.tsx` (replaces the Step-1 placeholder) — real runs table
+  (Id/Environment/Status/Trigger/Start/End/Duration/Passed/Failed/
+  Expected Fail/Skipped), a Start-New-Run control that loads real
+  Environments from the TM-01 API and preselects the default one, POSTs
+  only `environmentId` (no URL field — 4.3's "no bypassing TM-01"), and
+  navigates to the new run's detail page.
+- `pages/RunDetailPage.tsx` (new) — `/runs/:id`: environment snapshot,
+  status/trigger/timing/totals, the scenario table
+  (Test/Suite/Requirement/Bug/Status/Duration) with the failure message
+  shown inline for Failed/ExpectedFail rows, a manual **Refresh** button
+  (no polling — 4.20 explicitly defers that to Step 5's SignalR), and a
+  **Stop** button shown only while Queued/Running.
+- `App.tsx` — added the `/runs/:id` route.
+- `index.css` — status-badge colors per `ScenarioStatus`/`RunStatus`,
+  run-meta `<dl>`, failure-row styling.
+
+**test-management/server.Tests/ (4.25 — 21 new tests, 34 total with Step 3's):**
+- `TestDatabaseFixture.cs` — extracted the Step-3 throwaway-SQLite-file
+  pattern into a shared base class.
+- `ScenarioClassifierTests.cs` (6) — every rule in 4.11 directly.
+- `RunServiceTests.cs` (8) — Environment snapshotting, missing-Environment
+  rejection, new run starts Queued, the RunId actually reaches
+  `RunQueue`, stop-while-Queued marks Stopped directly without starting
+  it, stop-on-already-finished is a 409, unknown-id 404s, newest-first
+  ordering.
+- `RunOrchestratorPersistenceTests.cs` (7) — via the two test seams: a
+  `TestCase` is reused (not recreated) across two different runs of the
+  same `ExternalId`; a duplicate `scenario_discovered` for the same
+  run+test doesn't violate the unique constraint or create a second row;
+  a failure with `BugId` metadata persists as `ExpectedFail`, without it
+  as `Failed`; `FinalizeForTestingAsync` computes all four totals
+  correctly from mixed persisted results; and — the single most important
+  one architecturally — a run with real `FailedCount > 0` still ends up
+  `RunStatus.Completed` when finalized as such, proving the Run's own
+  status is never inferred from scenario failures.
+
+### Design decisions / deviations
+
+- **`server.Tests` stays a sibling of `server/`** (established in Step 3),
+  not restructured.
+- **OW_EVENT matching is substring, not prefix-of-line** — a real,
+  observed necessity (see `OwEvent.cs` above), not a spec deviation in
+  intent; both emitters were also hardened with a leading newline for the
+  same reason.
+- **A bug caught and fixed during real verification**: `POST /api/runs`
+  initially returned **200**, not 202 — `Response.StatusCode` was being
+  set manually but silently overwritten by ASP.NET Core's own
+  `ObjectResult` execution when returning a bare `ActionResult<T>` value.
+  Fixed with `return StatusCode(202, created);`. Caught immediately by
+  the real end-to-end run below (curl showed `HTTP:200`), not missed.
+- **A second bug caught and fixed the same way**: `BuildProcessStartInfo`
+  first combined `PlaywrightExecutableRelativePath` against the *repo
+  root* instead of the UI suite's own working directory (it's
+  `node_modules/.bin/playwright.cmd`, relative to `automation/ui`) — the
+  first live run's pytest phase completed and classified perfectly, then
+  Playwright failed to start (`Win32Exception: cannot find the file
+  specified`), correctly landing the Run as `Failed` (proving 4.21's
+  infrastructure-failure path itself works) rather than silently
+  succeeding. Fixed the path join; a second full live run confirmed it.
+
+### Verified
+
+**Backend:**
+- `dotnet build` (server) — 0 warnings, 0 errors.
+- `dotnet test` (`server.Tests`) — **34/34 passed** (13 from Step 3 +
+  21 new).
+- Standalone regression check — both suites still run exactly as before
+  when given `OFFENDERWATCH_BASE_URL` by hand: pytest **17 failed / 5
+  passed** (unchanged baseline), Playwright unaffected. Without the
+  variable, both fail immediately with the intended clear configuration
+  error (`conftest.py`'s `RuntimeError`; `playwright.config.js`'s
+  `throw`) — confirmed by actually running them unset.
+
+**Real end-to-end integration (4.26), through the Part 5 system, never
+manually from the automation folders:**
+1. Fresh migrated SQLite DB. Started the API.
+2. `POST /api/environments` — created a real Environment ("Roie",
+   `https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie`)
+   *through the Part 5 application* — this is what the run below actually
+   targets; no URL was ever typed into the run request itself.
+3. `POST /api/runs {"environmentId":1}` → **202**, `status:"Queued"`,
+   returned in well under a second.
+4. Polled `GET /api/runs/1` while it executed: pytest's 22 scenarios
+   appeared first (discovered → running → finished, live), finishing at
+   **5 passed / 17 ExpectedFail / 0 unexpected Failed** — exactly the
+   known, documented baseline, with every known-defect failure correctly
+   classified via its `BugId` (confirmed reading the persisted
+   `requirementId`/`bugId`/`failureMessage`/`stackTrace` directly from
+   the API response, e.g. `BUG-001`/`API-01` on
+   `test_paging_metadata_is_consistent` with its full pytest traceback
+   attached).
+5. Playwright's 11 scenarios then appeared and ran (after the first bug
+   above was fixed and re-verified): finished at **2 passed / 9
+   ExpectedFail**, `BugId`s including the multi-bug case
+   (`"BUG-007 / BUG-018"` preserved verbatim on `fr10-location-validation`),
+   `RequirementId`s (`FR-01`..`FR-11`) all correct.
+6. Final `TestRun`: `Status: Completed`, `PassedCount: 7`,
+   `FailedCount: 0`, `ExpectedFailedCount: 26`, `SkippedCount: 0`
+   (`7+26 = 33` scenarios total, `22+11` from the two suites) —
+   matches the two suites' known real baselines exactly, combined.
+7. `GET /api/runs` showed it, newest-first.
+8. `GET /api/runs/{id}` showed all 33 real persisted `ScenarioResult`s
+   with correct `RequirementId`/`BugId`/`Status`/`DurationMs`/
+   `FailureMessage`/`StackTrace`.
+9. React: `/runs` listed the run; clicking it opened `/runs/1`; the
+   environment-select on `/runs` was populated from the real TM-01 API
+   with "Roie (default)" preselected; run-meta, totals, and all 33
+   scenario rows (+17 inline failure-message rows) rendered correctly —
+   driven live in an actual Chromium browser via Playwright (a throwaway
+   verification script, deleted after, not a deliverable).
+
+**Cancellation verification (4.26):**
+- Started a second run against the same real Environment.
+- `POST /api/runs/2/stop` while it was `Running` (pytest had just
+  finished, Playwright had just discovered its 11 scenarios but none had
+  started).
+- Result: `Status: Stopped`, `EndedAtUtc` set; pytest's 22 completed
+  results (5 Passed / 17 ExpectedFail) were **left exactly as they were**;
+  all 11 Playwright scenarios — none of which had started executing —
+  became **Cancelled**.
+- Confirmed via `Get-CimInstance Win32_Process` that no orphaned
+  node/chromium process was left running — `Kill(entireProcessTree:
+  true)` actually tore down the whole tree, not just the immediate child.
+- Confirmed the second suite genuinely never got to *run* a scenario
+  (all 11 Cancelled, zero Passed/Failed/ExpectedFail among them).
+- `POST /stop` on that now-`Stopped` run, and on run 1
+  (`Completed`) → both correctly **409**. `POST /stop` on an unknown id →
+  **404**.
+- In the React app: started a fresh run from the UI, confirmed the
+  **Stop** button is visible while `Running`, clicked it, refreshed, and
+  confirmed the status became `Stopped` and the Stop button disappeared.
+
+**Frontend:**
+- `npm run build` (`tsc -b && vite build`) — clean.
+- Housekeeping: `cleanup_test_data.py` found **0** leftover AUTO-prefixed
+  offenders after the real run above — the suites' own existing
+  try/finally cleanup still works correctly when launched by the
+  orchestrator, not just when run by hand.
+
+Not implemented (correctly, per the 4.28 scope boundary): SignalR live
+updates, TM-04 history/regression/recovery, TM-06 test-data-lifecycle
+UI/cleanup, TM-07 dynamic dashboard, TM-08 evidence viewing, scheduled
+execution, run comparison, notifications, authentication, any bonus.
+
+Housekeeping: the verification `test-management/data/testmanagement.db`
+was deleted after this step's checks (same reasoning as Steps 2–3 — it's
+throwaway dev/verification data; deliverable #6's committed DB with real
+recorded runs is a Step 9 concern, and this step's real run was already
+independently proven correct above without needing to keep that exact
+file).
+
+STOP after Step 4. Awaiting review before Step 5 (Real-Time Execution).
+
+---
+
+### Step 4 spec (as implemented, kept verbatim below for reference)
+
+Status: READY FOR IMPLEMENTATION
+
+### Goal
+
+Implement real test-run execution from the Part 5 platform.
+
+A user must be able to:
+
+1. Select an Environment.
+2. Start a real test run from the React UI.
+3. Have the ASP.NET Core backend launch the existing Part 3:
+   - pytest API suite
+   - Playwright UI suite
+4. Persist the run and per-scenario results in SQLite.
+5. View run history and run details.
+6. Stop an active run.
+
+No fake or simulated test results are allowed.
+
+The existing Part 3 automation remains the source of truth.
+
+Step 4 must prepare the execution pipeline for Step 5 SignalR,
+but Step 4 must NOT implement SignalR broadcasting yet.
+
+---
+
+### 4.1 Architecture
+
+Use the orchestrated model:
+
+React
+  |
+  | POST /api/runs
+  v
+ASP.NET Core API
+  |
+  +--> create TestRun in SQLite
+  |
+  +--> enqueue execution
+  |
+  v
+RunOrchestrator / Background Worker
+  |
+  +--> pytest
+  |
+  +--> Playwright
+  |
+  +--> parse structured runner events
+  |
+  +--> persist TestCases + ScenarioResults
+  |
+  v
+SQLite
+
+The HTTP request that creates a run must NOT remain open while the
+entire automation suite executes.
+
+POST /api/runs should create/enqueue the run and return promptly.
+
+Actual automation execution must happen in a background execution
+component.
+
+Keep the design simple and interview-explainable.
+
+A single queued background worker is acceptable.
+Concurrent test runs are NOT required.
+
+---
+
+### 4.2 Run Status Semantics
+
+Use the existing TestRun statuses:
+
+- Queued
+- Running
+- Completed
+- Stopped
+- Failed
+
+IMPORTANT:
+
+"Completed" means that test execution finished normally.
+
+A Completed run may contain failed test scenarios.
+
+Do NOT mark the TestRun itself as Failed just because pytest or
+Playwright contains failed tests.
+
+Example:
+
+Run.Status = Completed
+PassedCount = 20
+FailedCount = 3
+ExpectedFailedCount = 7
+
+is valid.
+
+Run.Status = Failed is reserved for runner/infrastructure failure,
+for example:
+
+- automation process could not start
+- malformed runner integration prevented execution
+- runner crashed before producing a valid execution lifecycle
+- unrecoverable orchestration error
+
+Test assertion failures are ScenarioResult failures, not infrastructure
+Run failures.
+
+Stopped means the user explicitly cancelled the run.
+
+---
+
+### 4.3 Run Creation API
+
+Implement:
+
+POST /api/runs
+
+Request:
+
+{
+  "environmentId": 1
+}
+
+Behavior:
+
+1. Validate that the Environment exists.
+2. Create a TestRun with:
+   - EnvironmentId
+   - EnvironmentNameSnapshot
+   - BaseUrlSnapshot
+   - Trigger = Manual
+   - Status = Queued
+   - CreatedAtUtc
+3. Persist the TestRun.
+4. Enqueue it for background execution.
+5. Return promptly.
+
+Use an appropriate response such as:
+
+202 Accepted
+
+with the created run representation.
+
+Do NOT accept BaseUrl directly from the Start Run request.
+
+The selected Environment is the source of the target URL.
+
+This prevents a Run from bypassing TM-01 Environment configuration.
+
+---
+
+### 4.4 Run Read APIs
+
+Implement:
+
+GET /api/runs
+
+Return runs newest-first.
+
+Each run summary must contain at least:
+
+- Id
+- EnvironmentId
+- EnvironmentNameSnapshot
+- BaseUrlSnapshot
+- Status
+- Trigger
+- CreatedAtUtc
+- StartedAtUtc
+- EndedAtUtc
+- Duration
+- PassedCount
+- FailedCount
+- ExpectedFailedCount
+- SkippedCount
+
+Implement:
+
+GET /api/runs/{id}
+
+Return run details plus ScenarioResults.
+
+Each ScenarioResult must expose at least:
+
+- Id
+- TestCaseId
+- ExternalId
+- Name
+- Suite
+- RequirementId
+- BugId
+- Status
+- StartedAtUtc
+- EndedAtUtc
+- DurationMs
+- FailureMessage
+
+StackTrace may also be returned in the detail endpoint.
+
+Do not expose EF entities directly.
+
+Use DTOs.
+
+---
+
+### 4.5 Stop Run API
+
+Implement:
+
+POST /api/runs/{id}/stop
+
+Behavior:
+
+For Queued run:
+- cancel/remove or logically cancel the queued execution
+- Status -> Stopped
+- EndedAtUtc -> current UTC time
+
+For Running run:
+- request cancellation
+- terminate the currently-running child process
+- terminate its child process tree where supported
+- do not start the next automation suite
+- mark remaining persisted Queued ScenarioResults as Cancelled
+- mark a currently Running ScenarioResult as Cancelled if it never
+  received a legitimate final runner result
+- TestRun Status -> Stopped
+- EndedAtUtc -> current UTC time
+- preserve all results already completed before cancellation
+
+Stopping must NOT delete the TestRun or its existing ScenarioResults.
+
+Calling stop on an already Completed / Failed / Stopped run should
+return a clear conflict or no-op response rather than corrupt history.
+
+---
+
+### 4.6 Target Environment Injection
+
+Remove hard-coded OffenderWatch target URLs from both automation suites.
+
+This is an approved minimal Part 5 integration modification.
+
+Do NOT change:
+
+- assertions
+- scenario meaning
+- test data behavior except where integration requires it
+- BUG expectations
+- page objects unless required for configuration
+- existing test identities unnecessarily
+
+Use:
+
+OFFENDERWATCH_BASE_URL
+
+as the common environment variable passed by the ASP.NET Core
+orchestrator.
+
+#### pytest
+
+Modify the base_url fixture so it reads OFFENDERWATCH_BASE_URL.
+
+There must be NO hard-coded fallback target URL.
+
+If the variable is absent, fail immediately with a clear configuration
+error explaining that OFFENDERWATCH_BASE_URL is required.
+
+The suite must still be independently runnable from the command line
+when the environment variable is supplied.
+
+#### Playwright
+
+Set Playwright use.baseURL from:
+
+process.env.OFFENDERWATCH_BASE_URL
+
+There must be NO hard-coded fallback target URL.
+
+If the environment variable is missing, fail early with a clear
+configuration error.
+
+Preserve the existing Playwright:
+
+- tests
+- workers
+- retries
+- screenshots
+- traces
+- HTML report
+- JSON report
+
+unless a reporter addition requires extending the reporter array.
+
+Update automation documentation with the new standalone run commands.
+
+---
+
+### 4.7 Structured Runner Event Protocol
+
+Do NOT parse human-readable pytest or Playwright console output.
+
+Create a small, explicit machine-readable event protocol.
+
+Runner integrations must emit one JSON object per structured event,
+prefixed with:
+
+OW_EVENT|
+
+Example:
+
+OW_EVENT|{"version":1,"eventType":"scenario_started",...}
+
+The backend must ignore ordinary stdout/stderr lines that do not begin
+with OW_EVENT|.
+
+This keeps existing runner output readable while giving the backend a
+stable integration contract.
+
+All events must contain:
+
+- version = 1
+- eventType
+- runner
+- timestampUtc
+
+Supported event types for Step 4:
+
+- scenario_discovered
+- scenario_started
+- scenario_finished
+- suite_finished
+
+Scenario events must contain a stable ExternalId.
+
+---
+
+### 4.8 Stable Test Identity
+
+Stable TestCase identity is critical for future TM-04 history.
+
+Do NOT use a generated GUID as the runner identity.
+
+Use stable ExternalId values.
+
+For pytest use an identity based on nodeid, prefixed by suite:
+
+api::{pytest-nodeid}
+
+Example:
+
+api::test_api01_paging_search.py::test_search_is_partial_match
+
+For Playwright use a stable identity based on file/test title,
+prefixed by suite.
+
+Example concept:
+
+ui::tests/fr01-pagination.spec.js::FR-01 / TC-001C...
+
+Do not include run id, timestamp, duration, random values, or other
+execution-specific information in ExternalId.
+
+The same scenario executed in Run 1 and Run 20 must resolve to the
+same TestCase.
+
+---
+
+### 4.9 pytest Integration Reporter
+
+Create a minimal pytest reporting plugin/module for Part 5 integration.
+
+Do NOT add Part 5 HTTP calls to the pytest tests themselves.
+
+The reporter/plugin should emit structured OW_EVENT events to stdout.
+
+It must support:
+
+scenario_discovered
+
+scenario_started
+
+scenario_finished
+
+suite_finished
+
+For each scenario determine:
+
+- ExternalId
+- Name
+- Suite = API
+- RequirementId if discoverable
+- BugId if discoverable
+- final status
+- duration
+- failure message / stack information where available
+
+Do not change assertions to create expected failures.
+
+Known defect metadata may be detected non-invasively from existing
+test metadata such as:
+
+- test/function docstrings
+- module metadata
+- BUG-xxx text
+
+Native pytest xfail behavior, if present, must also be recognized.
+
+---
+
+### 4.10 Playwright Integration Reporter
+
+Create a small custom Playwright reporter for Part 5.
+
+Do NOT put backend HTTP calls inside the Playwright tests.
+
+Add the reporter alongside the existing reporters.
+
+It must emit:
+
+- scenario_discovered
+- scenario_started
+- scenario_finished
+- suite_finished
+
+using OW_EVENT JSON lines.
+
+For each scenario determine:
+
+- stable ExternalId
+- Name
+- Suite = UI
+- RequirementId if discoverable
+- BugId if discoverable
+- final status
+- duration
+- failure message / stack information where available
+
+Preserve the existing normal Playwright reporters.
+
+---
+
+### 4.11 Expected Failure Classification
+
+Expected failures MUST remain distinguishable from unexpected failures.
+
+Final ScenarioResult statuses include:
+
+- Passed
+- Failed
+- ExpectedFail
+- Skipped
+- Cancelled
+
+Classification rules:
+
+1. A normal successful scenario -> Passed
+
+2. A normal failing scenario without known expected-failure metadata
+   -> Failed
+
+3. A failing scenario explicitly identified as a known defect
+   (for example BUG-xxx metadata) -> ExpectedFail
+
+4. Native pytest xfail -> ExpectedFail
+
+5. Native Playwright expected-failure semantics should also be
+   recognized if used.
+
+6. A known-defect scenario that unexpectedly passes should be stored
+   as Passed for now.
+
+Do NOT alter the test assertion to force an ExpectedFail result.
+
+ExpectedFail is an interpretation of the execution result plus known
+metadata.
+
+Store BugId on TestCase where detected.
+
+This is required so known defects do not look like newly-introduced
+regressions later.
+
+---
+
+### 4.12 Scenario Persistence
+
+When scenario_discovered is received:
+
+1. Resolve TestCase by ExternalId.
+2. If none exists:
+   - create TestCase
+3. If it exists:
+   - reuse the same TestCase
+   - update non-historical descriptive metadata only if appropriate
+4. Create the ScenarioResult for this Run with:
+   Status = Queued
+
+The unique:
+
+(TestRunId, TestCaseId)
+
+constraint must remain respected.
+
+When scenario_started is received:
+
+- ScenarioResult.Status -> Running
+- StartedAtUtc -> event timestamp
+
+When scenario_finished is received:
+
+- set final ScenarioResult status
+- EndedAtUtc
+- DurationMs
+- FailureMessage where applicable
+- StackTrace where applicable
+
+Never update ScenarioResults belonging to another TestRun.
+
+Completed historical ScenarioResults are immutable with respect to
+future runs.
+
+---
+
+### 4.13 TestCase Metadata
+
+When first creating or later recognizing a TestCase, capture where
+available:
+
+- ExternalId
+- Name
+- Suite
+- RequirementId
+- BugId
+
+Metadata extraction should be conservative.
+
+Do not invent RequirementId or BugId if they cannot be determined from
+the existing test metadata.
+
+---
+
+### 4.14 Suite Execution Order
+
+For Step 4, execute the suites sequentially:
+
+1. pytest API suite
+2. Playwright UI suite
+
+Sequential execution is intentional.
+
+Reasons:
+
+- simpler process ownership
+- simpler cancellation
+- easier event ordering
+- lower load on the shared demo application
+- easier to explain in the interview
+
+Do NOT implement concurrent suites in Step 4.
+
+If Stop is requested during pytest, Playwright must not start.
+
+If pytest contains assertion failures but completes normally,
+Playwright SHOULD still execute.
+
+Test failures do not abort the full run.
+
+---
+
+### 4.15 Runner Process Configuration
+
+Do not hard-code repository absolute paths.
+
+Add clear runner configuration in appsettings/configuration.
+
+The backend must be able to locate:
+
+- automation/api
+- automation/ui
+
+relative to the repository/application structure.
+
+Runner executable/command configuration should remain simple.
+
+Use ProcessStartInfo with redirected stdout and stderr.
+
+Do not invoke user-controlled shell commands.
+
+The BaseUrl must be supplied to each child process through its
+environment:
+
+OFFENDERWATCH_BASE_URL = TestRun.BaseUrlSnapshot
+
+The child process must use the immutable Run snapshot, not re-read the
+Environment record during execution.
+
+---
+
+### 4.16 Background Execution
+
+Do not run long automation processes directly inside the HTTP
+controller.
+
+Implement a background run executor using a simple ASP.NET Core
+background-service / queue approach.
+
+A single consumer is sufficient for this assignment.
+
+The execution component must:
+
+- receive RunId
+- create its own DI scope / DbContext as needed
+- transition Queued -> Running
+- set StartedAtUtc
+- launch runners
+- parse events
+- persist results
+- support cancellation
+- finalize counts
+- set EndedAtUtc
+- set final Run status
+
+Do not hold a scoped controller DbContext for the lifetime of the run.
+
+---
+
+### 4.17 Run Totals
+
+When the automation run finishes or is stopped, calculate and persist:
+
+- PassedCount
+- FailedCount
+- ExpectedFailedCount
+- SkippedCount
+
+Cancelled scenarios do not count as Failed.
+
+Do not infer totals from process exit code.
+
+Calculate them from persisted ScenarioResults.
+
+---
+
+### 4.18 Duration
+
+Run duration:
+
+EndedAtUtc - StartedAtUtc
+
+Scenario duration:
+
+runner-provided DurationMs where available.
+
+The API may calculate the run duration for response purposes instead
+of adding another persisted database field.
+
+Use UTC timestamps consistently.
+
+---
+
+### 4.19 React Runs Page
+
+Replace the existing /runs placeholder.
+
+The page must show real persisted runs.
+
+Display:
+
+- Run id
+- Environment
+- Status
+- Trigger
+- Start time
+- End time
+- Duration
+- Passed
+- Failed
+- Expected Fail
+- Skipped
+
+Provide:
+
+Start New Run
+
+The Start Run control must:
+
+1. Load real Environments from the existing TM-01 API.
+2. Preselect the default Environment where possible.
+3. Allow the user to select another Environment.
+4. POST the selected EnvironmentId to /api/runs.
+
+Do not allow arbitrary URL input on the Run form.
+
+After starting a run, navigate to its Run Details page.
+
+---
+
+### 4.20 React Run Details Page
+
+Add:
+
+/runs/:id
+
+Display:
+
+- Environment snapshot
+- Run status
+- Trigger
+- Start/end/duration
+- totals
+- scenario table
+
+Scenario table:
+
+- Test
+- Suite
+- Requirement
+- Bug
+- Status
+- Duration
+
+Show failure message for failed / expected-failed scenarios.
+
+For Step 4, a manual Refresh action is acceptable while a run is active.
+
+Do NOT implement polling as a substitute for TM-03.
+
+Do NOT implement SignalR yet.
+
+Step 5 will make this page live without refresh.
+
+Provide a Stop button while Status is:
+
+- Queued
+- Running
+
+---
+
+### 4.21 Process Exit Handling
+
+pytest and Playwright normally return non-zero process exit codes when
+test assertions fail.
+
+Do NOT interpret every non-zero process exit code as an infrastructure
+failure.
+
+The structured reporter lifecycle and scenario results are the primary
+source of truth.
+
+If a runner completes its valid reporting lifecycle with test failures,
+the Run can still finish as Completed.
+
+If the runner cannot start, crashes without a valid lifecycle, or the
+orchestrator cannot reliably complete execution, mark the Run as Failed
+and preserve diagnostic information in application logs.
+
+Detailed evidence persistence belongs to a later step.
+
+---
+
+### 4.22 Evidence Boundary
+
+Existing Playwright screenshots/traces/reports should continue to work.
+
+However Step 4 does NOT yet implement TM-08 evidence ingestion.
+
+Do not create EvidenceArtifact rows merely to satisfy the table.
+
+Do not fake evidence metadata.
+
+Step 6 will associate actual runner evidence with the exact
+ScenarioResult.
+
+---
+
+### 4.23 Test Data Boundary
+
+Existing test data behavior must remain operational.
+
+Step 4 does NOT yet implement TM-06 TestDataRecord registration or
+cleanup through the platform.
+
+Do not create fake TestDataRecord rows.
+
+Step 7 will integrate test-created Offenders / LocationPoints with
+TestDataRecord.
+
+---
+
+### 4.24 SignalR Boundary
+
+SignalR is NOT implemented in Step 4.
+
+The OW_EVENT protocol implemented here is deliberately the event source
+that Step 5 will broadcast through SignalR.
+
+Step 5 should not need to redesign runner integration.
+
+Architecture after Step 5 will become:
+
+Runner
+  |
+  | OW_EVENT
+  v
+ASP.NET Orchestrator
+  |
+  +--> SQLite
+  |
+  +--> SignalR
+          |
+          v
+        React
+
+---
+
+### 4.25 Backend Automated Tests
+
+Add focused tests for Run management where practical without executing
+the entire external OffenderWatch suite on every unit test.
+
+At minimum test:
+
+- creating a run snapshots the Environment name/base URL
+- missing Environment is rejected
+- run starts Queued
+- TestCase is reused by stable ExternalId
+- ScenarioResult unique identity per run/test
+- expected-failure classification
+- final totals calculated correctly
+- completed test failures do not make Run.Status Failed
+- stop semantics at the service/orchestrator boundary
+
+Keep unit/integration tests deterministic.
+
+Do not make the test-management self-tests depend on the external demo
+site.
+
+---
+
+### 4.26 Real Integration Verification
+
+In addition to automated backend tests, perform ONE real end-to-end
+Part 5 run against a configured OffenderWatch Environment.
+
+The run must be started through the Part 5 system, not manually from
+the automation folders.
+
+Verify:
+
+- TestRun is created
+- selected Environment snapshot is stored
+- pytest launches
+- Playwright launches
+- OFFENDERWATCH_BASE_URL reaches both suites
+- real TestCases are created/reused
+- real ScenarioResults persist
+- expected failures are distinguishable
+- totals are correct
+- Run finishes
+- Runs page shows the run
+- Run Details shows real scenarios
+
+Also perform a cancellation verification on a run if safely practical:
+
+- start a run
+- stop it while active
+- verify child process is terminated
+- Run becomes Stopped
+- completed results remain
+- unfinished persisted scenarios become Cancelled
+- second suite does not start after cancellation
+
+Do not alter test assertions merely to make integration verification
+green.
+
+---
+
+### 4.27 Documentation
+
+Update README documentation for:
+
+- architecture
+- run flow
+- background worker
+- OW_EVENT protocol
+- OFFENDERWATCH_BASE_URL
+- standalone pytest execution
+- standalone Playwright execution
+- Start/Stop behavior
+- Run status vs ScenarioResult status
+- known-defect / ExpectedFail interpretation
+
+Document that Step 5 will add SignalR broadcasting on top of the same
+execution events.
+
+---
+
+### 4.28 Scope Boundary
+
+Step 4 DOES NOT implement:
+
+- SignalR live updates
+- TM-04 historical regression/recovery calculations
+- TM-06 test-data lifecycle UI/cleanup
+- TM-07 dynamic dashboard statistics
+- TM-08 evidence ingestion/viewing
+- scheduled execution
+- run comparison
+- notifications
+- authentication
+
+Do not implement bonuses.
+
+---
+
+### Step 4 Definition of Done
+
+Step 4 is DONE only when:
+
+- POST /api/runs starts a real background run
+- Environment selection is required
+- Environment snapshot is persisted
+- hard-coded target URLs are removed from both suites
+- OFFENDERWATCH_BASE_URL controls both suites
+- pytest executes from the platform
+- Playwright executes from the platform
+- structured OW_EVENT reporting works
+- TestCases use stable identity
+- ScenarioResults persist per run
+- ExpectedFail remains distinct from Failed
+- run totals persist correctly
+- GET /api/runs works
+- GET /api/runs/{id} works
+- stop endpoint works
+- React Runs page works
+- React Run Details page works
+- one real end-to-end run has been verified
+- cancellation has been verified where safely practical
+- backend tests pass
+- dotnet build passes
+- npm run build passes
+- existing test behavior remains intact
+
+After verification:
+
+Update PART5_PLAN.md:
+
+- Step 4 -> DONE
+- TM-02 -> DONE only if all TM-02 functionality in this step is verified
+- Current Step -> Awaiting review
+
+STOP.
+
+Do not begin Step 5.
 
 ---
 
@@ -1537,7 +2734,7 @@ Verify:
 
 CURRENT STEP: Awaiting review
 
-Step 3 (Environment Management / TM-01) is DONE and verified — see the
-Step 3 section above. Steps 1 and 2 remain DONE.
+Step 4 (Run Management & Automation Integration / TM-02) is DONE and
+verified — see the Step 4 section above. Steps 1–3 remain DONE.
 
-Do not implement Step 4 or later without review.
+Do not implement Step 5 or later without review.
