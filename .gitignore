@@ -6,3 +6,14 @@ automation/api/__pycache__/
 automation/api/.pytest_cache/
 automation/api/results/
 *.pyc
+
+# Part 5 — test-management platform
+test-management/server/bin/
+test-management/server/obj/
+test-management/client/node_modules/
+test-management/client/dist/
+test-management/client/.env.local
+
+# NOTE: the SQLite database under test-management/data/ is NOT ignored —
+# deliverable #6 requires committing it with recorded runs at submission time.
+

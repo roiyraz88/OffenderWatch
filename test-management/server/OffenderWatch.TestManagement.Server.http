@@ -1,0 +1,6 @@
+@OffenderWatch.TestManagement.Server_HostAddress = http://localhost:5174
+
+GET {{OffenderWatch.TestManagement.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
