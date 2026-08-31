@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Threading.Channels;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using OffenderWatch.TestManagement.Server.Data;
+using OffenderWatch.TestManagement.Server.Hubs;
 using OffenderWatch.TestManagement.Server.Models;
 
 namespace OffenderWatch.TestManagement.Server.Services;
@@ -32,6 +34,7 @@ public class RunOrchestrator
     private readonly TestManagementDbContext _db;
     private readonly RunnerOptions _options;
     private readonly IHostEnvironment _hostEnvironment;
+    private readonly IHubContext<RunHub> _hub;
     private readonly ILogger<RunOrchestrator> _logger;
 
     private int _runId;
@@ -41,11 +44,13 @@ public class RunOrchestrator
         TestManagementDbContext db,
         IOptions<RunnerOptions> options,
         IHostEnvironment hostEnvironment,
+        IHubContext<RunHub> hub,
         ILogger<RunOrchestrator> logger)
     {
         _db = db;
         _options = options.Value;
         _hostEnvironment = hostEnvironment;
+        _hub = hub;
         _logger = logger;
     }
 
@@ -64,6 +69,7 @@ public class RunOrchestrator
         run.Status = RunStatus.Running;
         run.StartedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(CancellationToken.None);
+        await BroadcastRunUpdatedAsync(run);
 
         var baseUrl = run.BaseUrlSnapshot;
 
@@ -345,13 +351,18 @@ public class RunOrchestrator
             .AnyAsync(sr => sr.TestRunId == _runId && sr.TestCaseId == testCase.Id, CancellationToken.None);
         if (!alreadyExists)
         {
-            _db.ScenarioResults.Add(new ScenarioResult
+            var scenarioResult = new ScenarioResult
             {
                 TestRunId = _runId,
                 TestCaseId = testCase.Id,
+                TestCase = testCase,
                 Status = ScenarioStatus.Queued,
-            });
+            };
+            _db.ScenarioResults.Add(scenarioResult);
             await _db.SaveChangesAsync(CancellationToken.None);
+            // 5.4 — scenario creation as Queued, useful so the UI can show
+            // the full scenario list before anything has started running.
+            await BroadcastScenarioUpdatedAsync(scenarioResult);
         }
     }
 
@@ -365,6 +376,7 @@ public class RunOrchestrator
         result.Status = ScenarioStatus.Running;
         result.StartedAtUtc = evt.TimestampUtc;
         await _db.SaveChangesAsync(CancellationToken.None);
+        await BroadcastScenarioUpdatedAsync(result);
     }
 
     private async Task HandleFinishedAsync(OwEvent evt)
@@ -390,6 +402,7 @@ public class RunOrchestrator
         result.StackTrace = evt.StackTrace;
 
         await _db.SaveChangesAsync(CancellationToken.None);
+        await BroadcastScenarioUpdatedAsync(result);
     }
 
     private Task<ScenarioResult?> FindScenarioResultAsync(string? externalId)
@@ -399,12 +412,14 @@ public class RunOrchestrator
             return Task.FromResult<ScenarioResult?>(null);
         }
         return _db.ScenarioResults
+            .Include(sr => sr.TestCase)
             .FirstOrDefaultAsync(sr => sr.TestRunId == _runId && sr.TestCaseId == testCaseId, CancellationToken.None)!;
     }
 
     private async Task CancelPendingScenariosAsync()
     {
         var pending = await _db.ScenarioResults
+            .Include(sr => sr.TestCase)
             .Where(sr => sr.TestRunId == _runId
                 && (sr.Status == ScenarioStatus.Queued || sr.Status == ScenarioStatus.Running))
             .ToListAsync(CancellationToken.None);
@@ -421,6 +436,13 @@ public class RunOrchestrator
             sr.EndedAtUtc = now;
         }
         await _db.SaveChangesAsync(CancellationToken.None);
+
+        // 5.6 — Cancelled scenario updates broadcast before the final
+        // RunUpdated(Stopped) that FinalizeAsync sends right after this.
+        foreach (var sr in pending)
+        {
+            await BroadcastScenarioUpdatedAsync(sr);
+        }
     }
 
     private async Task FinalizeAsync(RunStatus status)
@@ -447,5 +469,33 @@ public class RunOrchestrator
         run.EndedAtUtc = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(CancellationToken.None);
+        // 5.4 — final RunUpdated: Running -> Completed/Failed, or -> Stopped.
+        await BroadcastRunUpdatedAsync(run);
+    }
+
+    // ---- SignalR broadcast (Step 5 / TM-03) ----------------------------
+    //
+    // Always called *after* the corresponding SaveChangesAsync above (5.4) —
+    // SQLite is the source of truth, SignalR is purely a notification on
+    // top of an already-committed change. Broadcasting is wrapped so a
+    // transport failure (e.g. no clients connected, a serialization hiccup)
+    // can never crash the run or affect its persisted status (5.5).
+
+    private Task BroadcastRunUpdatedAsync(TestRun run) =>
+        SafeBroadcastAsync("RunUpdated", RunDtoMapper.ToSummaryDto(run));
+
+    private Task BroadcastScenarioUpdatedAsync(ScenarioResult scenarioResult) =>
+        SafeBroadcastAsync("ScenarioUpdated", RunDtoMapper.ToScenarioResultDto(scenarioResult));
+
+    private async Task SafeBroadcastAsync(string method, object payload)
+    {
+        try
+        {
+            await _hub.Clients.Group(RunHub.GroupName(_runId)).SendAsync(method, payload);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Run {RunId}: SignalR broadcast of {Method} failed (execution continues unaffected)", _runId, method);
+        }
     }
 }

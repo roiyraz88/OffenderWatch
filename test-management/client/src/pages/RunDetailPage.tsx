@@ -1,8 +1,9 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { getRun, stopRun } from "../api/runs";
-import type { RunDetail } from "../types/run";
+import { useRunLiveUpdates } from "../hooks/useRunLiveUpdates";
+import type { RunDetail, RunSummary, ScenarioResult } from "../types/run";
 
 function formatDuration(seconds: number | null): string {
   if (seconds === null) return "—";
@@ -16,8 +17,17 @@ function formatTime(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString() : "—";
 }
 
-// TM-02 — Run Details (Step 4). Manual refresh only; Step 5 (SignalR) makes
-// this page live without one.
+const CONNECTION_LABEL: Record<string, string> = {
+  connecting: "Connecting…",
+  live: "Live",
+  reconnecting: "Reconnecting…",
+  disconnected: "Disconnected",
+};
+
+// TM-03 — Run Details (Step 5). Hydrates from REST, then stays live via
+// SignalR: RunUpdated/ScenarioUpdated apply as incremental in-place updates
+// (5.13) so an active run's scenarios visibly transition without the user
+// ever pressing Refresh (5.9). Refresh remains as a manual fallback.
 export function RunDetailPage() {
   const { id } = useParams<{ id: string }>();
   const runId = Number(id);
@@ -28,11 +38,20 @@ export function RunDetailPage() {
   const [stopping, setStopping] = useState(false);
   const [stopError, setStopError] = useState<string | null>(null);
 
+  // Guards against a REST response that started before a newer SignalR
+  // event arrived from clobbering it — always keep the freshest state.
+  const lastAppliedRef = useRef(0);
+
   async function load() {
     setLoading(true);
     setLoadError(null);
+    const requestedAt = Date.now();
     try {
-      setRun(await getRun(runId));
+      const fresh = await getRun(runId);
+      if (requestedAt >= lastAppliedRef.current) {
+        lastAppliedRef.current = requestedAt;
+        setRun(fresh);
+      }
     } catch (err) {
       setLoadError(err instanceof ApiError ? err.message : "Could not reach the API.");
     } finally {
@@ -44,6 +63,26 @@ export function RunDetailPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
+
+  const { connectionState } = useRunLiveUpdates({
+    runId,
+    onNeedsRefetch: load,
+    onRunUpdated: (updated: RunSummary) => {
+      lastAppliedRef.current = Date.now();
+      setRun((current) => (current ? { ...current, ...updated } : current));
+    },
+    onScenarioUpdated: (scenario: ScenarioResult) => {
+      lastAppliedRef.current = Date.now();
+      setRun((current) => {
+        if (!current) return current;
+        const exists = current.scenarioResults.some((sr) => sr.id === scenario.id);
+        const scenarioResults = exists
+          ? current.scenarioResults.map((sr) => (sr.id === scenario.id ? scenario : sr))
+          : [...current.scenarioResults, scenario].sort((a, b) => a.id - b.id);
+        return { ...current, scenarioResults };
+      });
+    },
+  });
 
   async function handleStop() {
     setStopping(true);
@@ -82,6 +121,9 @@ export function RunDetailPage() {
       <div className="page-header">
         <h1>Run #{run.id}</h1>
         <div>
+          <span className={`connection-indicator connection-${connectionState}`}>
+            {CONNECTION_LABEL[connectionState]}
+          </span>
           <button onClick={load} disabled={loading}>
             Refresh
           </button>

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using OffenderWatch.TestManagement.Server.DTOs;
 using OffenderWatch.TestManagement.Server.Models;
 using OffenderWatch.TestManagement.Server.Services;
@@ -21,7 +22,7 @@ public class RunServiceTests : TestDatabaseFixture
 
     public RunServiceTests()
     {
-        _sut = new RunService(Db, _queue, _cancellation);
+        _sut = new RunService(Db, _queue, _cancellation, TestHubContext.Real(), NullLogger<RunService>.Instance);
     }
 
     private async Task<EnvironmentEntity> SeedEnvironmentAsync(string name = "Dev")

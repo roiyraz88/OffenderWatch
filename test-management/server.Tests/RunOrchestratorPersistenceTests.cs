@@ -26,6 +26,7 @@ public class RunOrchestratorPersistenceTests : TestDatabaseFixture
             Db,
             Options.Create(new RunnerOptions()),
             new StubHostEnvironment(),
+            TestHubContext.Real(),
             NullLogger<RunOrchestrator>.Instance);
     }
 

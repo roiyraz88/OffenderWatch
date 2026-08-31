@@ -211,3 +211,33 @@ tr.failure-row td {
   padding-top: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+/* TM-03 (Step 5) — unobtrusive live-connection indicator (5.11/5.14). */
+.connection-indicator {
+  font-size: 0.75em;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  margin-right: 0.75rem;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.connection-live {
+  color: #1a7a3d;
+  background: rgba(42, 170, 119, 0.15);
+  border-color: rgba(42, 170, 119, 0.3);
+}
+
+.connection-connecting,
+.connection-reconnecting {
+  color: #a06a00;
+  background: rgba(184, 134, 11, 0.15);
+  border-color: rgba(184, 134, 11, 0.3);
+}
+
+.connection-disconnected {
+  color: #888;
+  background: rgba(127, 127, 127, 0.15);
+  border-color: rgba(127, 127, 127, 0.3);
+}

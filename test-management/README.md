@@ -1,13 +1,13 @@
 # OffenderWatch — Test Management Platform (Part 5)
 
-Status: **Step 4 — Run Management & Automation Integration** (TM-02) done.
+Status: **Step 5 — Real-Time Execution** (TM-03) done.
 See [`PART5_PLAN.md`](../PART5_PLAN.md) at the repo root for the full
 implementation plan and current step.
 
-TM-01 (Environment configuration) and TM-02 (real run execution) are fully
-working end-to-end. SignalR live updates (TM-03), history calculations
+TM-01 (Environment configuration), TM-02 (real run execution), and TM-03
+(live SignalR progress) are fully working end-to-end. History calculations
 (TM-04), evidence viewing (TM-08), and test-data cleanup (TM-06) are not
-implemented yet — see `PART5_PLAN.md`'s Step 5–8 sections.
+implemented yet — see `PART5_PLAN.md`'s Step 6–8 sections.
 
 ## Structure
 
@@ -49,9 +49,77 @@ The HTTP request that starts a run never blocks on the automation suites —
 enqueued. All actual execution happens in the background worker, which
 creates its own DI scope (and therefore its own `DbContext`) per run.
 
-**Step 5 will add SignalR** on top of the exact same `OW_EVENT` stream the
-orchestrator already parses — the run/detail pages will go from
-manual-refresh to live without any change to the runner integration itself.
+**Step 5 (TM-03) added SignalR** on top of the exact same `OW_EVENT` stream
+the orchestrator already parsed in Step 4 — no change to the runner
+integration itself. Full flow:
+
+```
+pytest / Playwright
+  |
+  | OW_EVENT|{json}
+  v
+RunOrchestrator
+  |
+  +--> SQLite (persist — the source of truth, always first)
+  |
+  +--> RunHub group "run:{runId}" (broadcast — a notification on top)
+          |
+          v
+        React (Run Details page, subscribed to that one run's group)
+```
+
+## Real-time (TM-03 / Step 5)
+
+**Hub**: `Hubs/RunHub.cs`, mapped at `/hubs/runs`. Deliberately thin — no
+execution logic, only two methods (`SubscribeToRun(runId)` /
+`UnsubscribeFromRun(runId)`) that add/remove the caller's connection from a
+per-run SignalR group named `run:{runId}` (`RunHub.GroupName`). The browser
+may only subscribe/unsubscribe; it can never mutate a Run or ScenarioResult
+over the Hub — Start/Stop stay on the existing REST endpoints.
+
+**Broadcast points** — `RunOrchestrator` (and, for the two direct-stop
+paths, `RunService`) call `IHubContext<RunHub>` **after** the corresponding
+`SaveChangesAsync` has committed, never before:
+- `RunUpdated`: Queued→Running, and the final Running→{Completed/Failed/
+  Stopped}.
+- `ScenarioUpdated`: a scenario's creation as Queued, Queued→Running, and
+  Running→final status (including Cancelled, on Stop).
+
+Both payloads reuse the exact same DTOs (`RunSummaryDto`/
+`ScenarioResultDto`) the REST API already returns (`Services/
+RunDtoMapper.cs` is the one mapper both transports share) — no EF entity is
+ever sent, and the live message shape matches the REST shape exactly.
+
+**Broadcasting is fail-soft.** Every send is wrapped and logged, never
+thrown — a SignalR transport failure (or zero connected clients, the normal
+case for most of a run's life) can never affect a run's persisted status or
+crash the run. Verified directly with a unit test using a hub context whose
+every send throws (`RealTimeTests.SignalRTransportFailure_DoesNotMarkRunFailed`).
+
+**React** (`hooks/useRunLiveUpdates.ts`, used by `RunDetailPage.tsx`):
+1. `GET /api/runs/{id}` hydrates the page first — REST remains necessary;
+   a completed historical run is fully viewable with zero live connection.
+2. A SignalR connection is opened (`@microsoft/signalr`,
+   `withAutomaticReconnect()`) to `${VITE_API_BASE_URL}/hubs/runs` (never a
+   hard-coded address) and subscribes to that run's group.
+3. From then on, `RunUpdated`/`ScenarioUpdated` messages are applied as
+   incremental in-place updates to local state — the run header/totals
+   update, and a scenario row is found by id and replaced (or appended if
+   it wasn't in the initial REST snapshot yet). No full REST reload happens
+   per event.
+4. To avoid missing a fast transition during page setup, the connection is
+   established and subscribed *before* the REST fetch resolves is relied
+   on — on connect (and again on every reconnect) the page triggers a fresh
+   REST fetch, so the authoritative database state is always what's
+   eventually shown regardless of event-arrival timing. No event replay is
+   implemented — the database is always sufficient.
+5. A small "Live / Reconnecting… / Disconnected" indicator in the page
+   header reflects connection state. On reconnect, the client re-subscribes
+   to the run's group and re-fetches REST state automatically.
+
+The pre-existing manual **Refresh** button remains as a fallback/debug
+action; TM-03's acceptance criterion (watching a run's scenarios transition
+without ever pressing it) does not depend on it.
 
 ## Run flow & status semantics
 

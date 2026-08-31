@@ -155,7 +155,7 @@ test-management/
 |---|---|---|
 | TM-01 | Environment configuration | DONE |
 | TM-02 | Run execution & management | DONE |
-| TM-03 | Real-time progress | Planned |
+| TM-03 | Real-time progress | DONE |
 | TM-04 | Test history | Planned |
 | TM-05 | Persistence | Planned |
 | TM-06 | Test data lifecycle | Planned |
@@ -2654,11 +2654,745 @@ Do not begin Step 5.
 
 ---
 
-## Step 5 — Real-Time Execution
+## Step 5 — Real-Time Execution (TM-03)
 
-Implement TM-03 using SignalR.
+**STATUS: DONE (2026-08-31). TM-03 -> DONE.**
 
-Details will be defined before implementation.
+Implemented 5.1–5.16 with no redesign of the Step 4 runner integration —
+`OW_EVENT` still flows exactly as before into `RunOrchestrator`; SignalR is
+purely an added notification layer on top of the already-working
+persist-then-decide pipeline. First confirmed Steps 1–4 were intact
+(`dotnet build`, `dotnet test` = 34/34, `npm run build`, all clean before
+starting).
+
+### Files added/changed
+
+**test-management/server/:**
+- `Hubs/RunHub.cs` (new) — thin Hub (5.1): `SubscribeToRun(runId)` /
+  `UnsubscribeFromRun(runId)` add/remove the caller from the
+  `run:{runId}` group (`RunHub.GroupName`, 5.2); invalid ids (`<= 0`) are
+  silently ignored rather than throwing. No execution logic, no
+  Run/ScenarioResult mutation reachable from the Hub (5.15).
+- `Services/RunDtoMapper.cs` (new) — the entity→DTO mapping (`ToSummaryDto`/
+  `ToScenarioResultDto`) extracted out of `RunService` so both the REST
+  response and every SignalR broadcast are built from one shared mapper
+  (5.3) — the live message shape is always identical to what `GET
+  /api/runs/{id}` would show for the same state, never a parallel/divergent
+  shape.
+- `Services/RunOrchestrator.cs` — took a constructor dependency on
+  `IHubContext<RunHub>`. Added `BroadcastRunUpdatedAsync`/
+  `BroadcastScenarioUpdatedAsync`/`SafeBroadcastAsync`, called at exactly
+  the points in 5.4: `RunAsync` right after Queued→Running is persisted;
+  `HandleDiscoveredAsync` right after a new `ScenarioResult` (Queued) is
+  persisted; `HandleStartedAsync` right after Queued→Running; `
+  HandleFinishedAsync` right after the final status is persisted;
+  `CancelPendingScenariosAsync` right after the Cancelled sweep, once per
+  affected scenario; `FinalizeAsync` right after the run's final
+  status/totals are persisted. `FindScenarioResultAsync` and
+  `CancelPendingScenariosAsync`'s query now `.Include(sr => sr.TestCase)`
+  (needed for the DTO mapper); the newly-created `ScenarioResult` in
+  `HandleDiscoveredAsync` has `TestCase` set directly (not just
+  `TestCaseId`) for the same reason. `SafeBroadcastAsync` wraps every send
+  in try/catch + `LogWarning` — never rethrown (5.5).
+- `Services/RunService.cs` — same `IHubContext<RunHub>` dependency, for the
+  two paths where *this* class (not the orchestrator) flips a Run directly
+  to Stopped without ever starting a process: a still-Queued run, and an
+  orphaned Running row with no live cancellation token. Both now broadcast
+  `RunUpdated` right after their `SaveChangesAsync`, with the same fail-soft
+  try/catch. `ToSummaryDto`/`ToScenarioResultDto` now delegate to
+  `RunDtoMapper` instead of duplicating the mapping.
+- `Program.cs` — `app.MapHub<RunHub>("/hubs/runs")` (5.1's suggested
+  route), added after `app.MapControllers()`. `AddSignalR()` itself was
+  already registered in Step 1; nothing else in the DI setup needed to
+  change since `RunOrchestrator`/`RunService` already resolve their other
+  dependencies via constructor injection.
+
+**test-management/client/:**
+- `hooks/useRunLiveUpdates.ts` (new) — the one reusable SignalR client
+  (5.7): builds a `HubConnection` to `${VITE_API_BASE_URL}/hubs/runs`
+  (never hard-coded) with `withAutomaticReconnect()` (5.11), subscribes to
+  the run's group on connect and again on every `onreconnected` (5.11),
+  and exposes `connectionState` (`connecting`/`live`/`reconnecting`/
+  `disconnected`) plus three callbacks the caller supplies
+  (`onRunUpdated`/`onScenarioUpdated`/`onNeedsRefetch`). `onNeedsRefetch`
+  fires right after the initial connect+subscribe and after every
+  reconnect+resubscribe — the race-handling strategy from 5.10 (connect,
+  subscribe, *then* (re-)fetch REST, so a fast transition during setup
+  can't be missed, and reconnection always ends with an authoritative
+  re-fetch, 5.11).
+- `pages/RunDetailPage.tsx` — now uses the hook. `RunUpdated` merges into
+  the existing `run` object in place (header/status/totals/timestamps);
+  `ScenarioUpdated` finds the matching row by `Id` and replaces it, or
+  appends+re-sorts by id if it wasn't in the snapshot yet (5.13) — no full
+  REST reload happens per live event, only on initial load, manual
+  Refresh, or a reconnect. A small monotonic `lastAppliedRef` guard
+  discards a REST response that resolves after a newer live update already
+  landed, so a slow initial fetch can never clobber fresher live state. A
+  "Live / Reconnecting… / Disconnected" indicator was added to the page
+  header (5.14) — the existing status-badge visual language from Steps 1–4
+  is otherwise untouched.
+- `index.css` — `.connection-indicator` + its three state classes; no
+  other visual changes.
+
+**test-management/server.Tests/ (5.16 — 4 new tests, 38 total with Step 4's 34):**
+- `TestHubContext.cs` (new, test-only) — `TestHubContext.Real()` builds a
+  genuine `IHubContext<RunHub>` through ASP.NET Core's own SignalR DI
+  wiring (`AddSignalR()` + `AddLogging()` on a bare `ServiceCollection`) —
+  a real `DefaultHubLifetimeManager` with zero connected clients, not a
+  hand-rolled mock, so broadcasting through it in every other test is a
+  genuine no-op exactly like production with no browser connected.
+  `ThrowingHubContext` is a minimal hand-written fake whose every send
+  throws `InvalidOperationException`, used by exactly one test.
+- `RealTimeTests.cs` (new, 4 tests): `GroupName_IsRunPrefixedById` (group
+  naming, 5.16); `ToSummaryDto_MapsRunUpdatedFields` /
+  `ToScenarioResultDto_MapsScenarioUpdatedFields` (the mapper contracts,
+  5.16); `SignalRTransportFailure_DoesNotMarkRunFailed` — runs a full
+  discover→finish→finalize sequence through `RunOrchestrator` wired to
+  `ThrowingHubContext` and asserts the run still finalizes as `Completed`
+  with correct counts despite every single broadcast throwing (5.5/5.16 —
+  "SignalR transport failure does not incorrectly mark a Run as Failed").
+- `RunOrchestratorPersistenceTests.cs` / `RunServiceTests.cs` — updated
+  constructors only (now pass `TestHubContext.Real()` + a `NullLogger`);
+  all their existing assertions are unchanged and still pass, which is
+  itself evidence that adding the broadcast calls didn't alter any
+  persisted behavior (5.16 — "orchestrator notification path does not
+  alter persisted behavior").
+
+### Design decisions / deviations
+
+- **No separate `RunUpdatedDto`/`ScenarioUpdatedDto` types.** 5.3 asks for
+  typed DTOs (not EF entities) with a specific minimum field set; the
+  existing `RunSummaryDto`/`ScenarioResultDto` from Step 4 already contain
+  every field 5.3 lists (a strict superset in `RunSummaryDto`'s case —
+  it also has `Id`/`EnvironmentId`/`CreatedAtUtc`, which are harmless extra
+  context for the client). Reusing them keeps the REST and SignalR shapes
+  identical by construction instead of maintaining two parallel contracts
+  that could drift apart.
+- **`RunService` also broadcasts**, not just `RunOrchestrator`. 5.5 talks
+  about integrating the Hub into "the existing execution flow" (which
+  reads as the orchestrator), but Step 4's `RunService.StopAsync` already
+  has two paths that flip a Run straight to `Stopped` without the
+  orchestrator ever running (a Queued run stopped before the worker picked
+  it up; an orphaned Running row with no live cancellation token). Leaving
+  those silent would mean Stop sometimes goes live and sometimes needs a
+  manual Refresh depending on timing — broadcasting from both places, with
+  the same fail-soft discipline, was judged truer to 5.9's "Stop result"
+  requirement than a literal single-broadcaster reading.
+- **`RunDtoMapper` extraction.** A small, in-scope refactor (not a
+  redesign) — `RunService`'s two private static mapper methods moved
+  verbatim into a new shared static class so `RunOrchestrator` could reuse
+  them for broadcasts without duplicating the mapping logic or drifting
+  from the REST shape.
+
+### Verified
+
+**Backend:**
+- `dotnet build` (server) — 0 warnings, 0 errors.
+- `dotnet test` (`server.Tests`) — **38/38 passed** (34 from Steps 3–4 + 4
+  new).
+
+**Real live execution (5.17), through the Part 5 system, an actual
+Environment configured through the platform (not hard-coded):**
+1. Fresh migrated SQLite DB. Started the API + Vite dev server.
+2. `POST /api/environments` created a real Environment ("Roie",
+   the live OffenderWatch demo URL).
+3. `POST /api/runs {"environmentId":1}` → **202**, `Queued`.
+4. Opened `/runs/1` in a real Chromium browser (Playwright driving it — a
+   throwaway verification script, deleted after, not a deliverable) and
+   observed it **continuously for the whole run, `page.reload()` never
+   called even once**:
+   - Connection indicator went `Connecting…` → **Live** immediately.
+   - `Status` badge showed **Running** the instant the page loaded (the
+     run had already transitioned server-side).
+   - The scenario table's row count grew live from 50 → 59 (33 real
+     scenarios + their inline failure-message rows) as pytest's 22 then
+     Playwright's 11 scenarios were discovered/started/finished — a
+     `status-running` badge was visibly present on exactly one row at a
+     time throughout (single-worker/sequential execution, exactly as
+     Step 4 designed it), moving from row to row.
+   - **`Status` flipped from `Running` to `Completed` live**, at t≈42s,
+     entirely without a page reload.
+   - Final totals shown: **7 passed · 0 failed · 26 expected-fail · 0
+     skipped** — the same established combined baseline as Step 4's
+     verification, now observed appearing live rather than via `curl`/
+     manual Refresh.
+5. `GET /api/runs/1` afterward confirmed the REST snapshot matches exactly
+   what the browser had already shown live — the database was the
+   consistent source of truth throughout, not the SignalR stream.
+
+**Live Stop verification (5.17/5.18):**
+1. Started a second real run (`POST /api/runs {"environmentId":1}` → id 2).
+2. Opened `/runs/2` live, let it run ~9s (pytest had finished, Playwright
+   was partway through — 27 scenarios already Passed/ExpectedFail).
+3. **Clicked the Stop button in the browser itself** (not curl) and
+   watched, with no Refresh:
+   - `Status` flipped to **Stopped within 1 second** of the click.
+   - The **Stop button disappeared** from the page immediately after.
+   - All 27 already-finished scenario rows (6 Passed + 21 ExpectedFail)
+     remained exactly as they were.
+   - The 6 still-Queued/Running Playwright scenarios became
+     **Cancelled**, live, in the browser.
+4. Cross-checked directly against `GET /api/runs/2`: `Status: Stopped`,
+   `PassedCount: 6`, `ExpectedFailedCount: 21`, and the persisted
+   `ScenarioResult`s matched the browser exactly
+   (`{ExpectedFail: 21, Passed: 6, Cancelled: 6}`) — the UI was never
+   ahead of or inconsistent with the database.
+5. Confirmed via `Get-CimInstance Win32_Process` (filtered for
+   `playwright|chromium|pytest|automation.ui|automation.api`) that **no
+   orphaned process was left** after the live-clicked Stop — the same
+   `Kill(entireProcessTree: true)` behavior from Step 4, now triggered via
+   a real browser click instead of `curl`.
+6. `cleanup_test_data.py` found **0** leftover AUTO-prefixed offenders
+   after both real runs — the suites' own cleanup still works when
+   launched by the orchestrator and interrupted mid-run by a live Stop.
+
+**Reconnection (5.18):** exercised through the same real live run above —
+the SignalR client's `onreconnected` handler (re-subscribe, then trigger a
+REST re-fetch) was verified by code inspection and by the unit-level
+persistence guarantee (5.16's tests, plus the fact that every live-observed
+run above never needed one, since the connection stayed up throughout).
+Per 5.18's own guidance not to intentionally disrupt the backend runner
+process just to force a reconnect scenario, a full "kill the network mid
+real-run and watch it recover" drill was not performed against the live
+demo app; the reconnect *logic path* itself (re-subscribe + re-fetch) is
+exercised identically on every connect, which was observed live.
+
+**Frontend:**
+- `npm run build` (`tsc -b && vite build`) — clean.
+
+**Regression / scope check:** `git diff --stat` against
+`automation/ui/tests`, `automation/api/test_api0*.py`, `dashboard/`, and
+`OffenderWatch_Assignment.xlsx` shows **zero changes** — every change this
+step made is confined to `test-management/`.
+
+Not implemented (correctly, per the 5.21 scope boundary): TM-04
+history/regression/recovery, TM-06 test-data lifecycle UI/cleanup, TM-07
+dynamic dashboard, TM-08 evidence viewing, scheduled execution,
+notifications, authentication, event-replay infrastructure.
+
+Housekeeping: the verification `test-management/data/testmanagement.db`
+was deleted after this step's checks (same reasoning as Steps 2–4).
+
+STOP after Step 5. Awaiting review before Step 6 (History & Evidence).
+
+---
+
+### Step 5 spec (as implemented, kept verbatim below for reference)
+
+Status: READY FOR IMPLEMENTATION
+
+### Goal
+
+Add live run and scenario updates to the existing Step 4 execution flow.
+
+The user must be able to open a running Run Details page and watch test
+scenarios transition in real time without manually refreshing the page.
+
+Required live scenario lifecycle:
+
+Queued -> Running -> Passed / Failed / ExpectedFail / Skipped / Cancelled
+
+The existing OW_EVENT runner protocol remains the source of execution events.
+
+Do NOT redesign the runner integration.
+
+Architecture:
+
+Runner
+  |
+  | OW_EVENT
+  v
+RunOrchestrator
+  |
+  +--> persist SQLite
+  |
+  +--> publish SignalR event
+             |
+             v
+           React
+
+SignalR is a transport layer on top of the already-working Step 4 flow.
+
+---
+
+### 5.1 SignalR Hub
+
+Create a SignalR Hub for run updates.
+
+Suggested name:
+
+RunHub
+
+Suggested route:
+
+/hubs/runs
+
+The Hub itself should remain thin.
+
+Do not put run execution logic inside the Hub.
+
+The Hub is responsible only for client connection/group behavior.
+
+---
+
+### 5.2 Per-Run Groups
+
+Clients viewing:
+
+/runs/{runId}
+
+should subscribe to a SignalR group associated with that specific run.
+
+Example concept:
+
+run:{runId}
+
+Provide Hub methods such as:
+
+SubscribeToRun(runId)
+UnsubscribeFromRun(runId)
+
+This avoids broadcasting every scenario update to every connected browser.
+
+Validate the run id input appropriately.
+
+Do not create a separate Hub per run.
+
+---
+
+### 5.3 Live Event Contract
+
+Define typed server-side DTOs/contracts for SignalR messages.
+
+Do not send EF entities directly.
+
+At minimum support these logical message types:
+
+RunUpdated
+ScenarioUpdated
+
+RunUpdated should contain enough information to update:
+
+- Run Id
+- Status
+- StartedAtUtc
+- EndedAtUtc
+- PassedCount
+- FailedCount
+- ExpectedFailedCount
+- SkippedCount
+
+ScenarioUpdated should contain enough information to update one scenario row:
+
+- ScenarioResultId
+- TestCaseId
+- ExternalId
+- Name
+- Suite
+- RequirementId
+- BugId
+- Status
+- StartedAtUtc
+- EndedAtUtc
+- DurationMs
+- FailureMessage
+
+Keep the payload simple.
+
+Do not expose internal process details or persistence-only navigation properties.
+
+---
+
+### 5.4 Broadcast Timing
+
+Broadcast only after the corresponding database change has been successfully persisted.
+
+Required broadcast points:
+
+Run:
+- Queued -> Running
+- Running -> Completed
+- Running -> Failed
+- Queued/Running -> Stopped
+
+Scenario:
+- creation as Queued, if useful for the UI
+- Queued -> Running
+- Running -> final status
+
+The database remains the source of truth.
+
+SignalR must never be the only place where state exists.
+
+---
+
+### 5.5 RunOrchestrator Integration
+
+Integrate IHubContext<RunHub> into the existing execution flow.
+
+Do NOT move orchestration logic into SignalR-specific services unless it genuinely improves clarity.
+
+After processing an OW_EVENT:
+
+1. update/persist the database
+2. broadcast the resulting state to the run group
+
+Preserve the existing Step 4 behavior if no browser is connected.
+
+Runs must execute normally even with zero SignalR clients.
+
+SignalR failures must not crash or invalidate a test run.
+
+Log transport errors appropriately.
+
+---
+
+### 5.6 Stop Flow
+
+When a user stops a run:
+
+- existing cancellation behavior remains unchanged
+- database state is updated first
+- SignalR then broadcasts:
+  - Cancelled scenario updates where applicable
+  - final RunUpdated with Status = Stopped
+
+The browser should reflect Stop without requiring Refresh.
+
+Do not duplicate cancellation logic inside the Hub.
+
+---
+
+### 5.7 React SignalR Client
+
+Use the existing @microsoft/signalr dependency.
+
+Create a small reusable SignalR client module/hook under an appropriate folder,
+for example:
+
+client/src/api/
+client/src/hooks/
+
+Do not create the connection directly inside many components.
+
+Use the configured backend URL.
+
+Do not hard-code the SignalR server address.
+
+The Hub URL must derive from the same environment/configuration strategy used
+for the REST API.
+
+---
+
+### 5.8 Run Details Live Subscription
+
+Update:
+
+/runs/:id
+
+so that when the page loads:
+
+1. Fetch the current persisted run state through REST.
+2. Establish the SignalR connection.
+3. Subscribe to the run-specific group.
+4. Apply matching RunUpdated / ScenarioUpdated messages to local UI state.
+
+REST remains necessary.
+
+SignalR is for subsequent changes, not initial page hydration.
+
+This ensures historical completed runs are still fully viewable without
+requiring SignalR replay.
+
+---
+
+### 5.9 No-Refresh Requirement
+
+For an active run, the user must be able to observe without pressing Refresh:
+
+- Run Queued -> Running
+- scenario Queued -> Running
+- scenario Running -> final status
+- totals changing as scenarios complete
+- final Run status
+- Stop result
+
+This is the core TM-03 acceptance criterion.
+
+The existing manual Refresh button may remain as a fallback/debug action,
+but TM-03 must work without using it.
+
+Do not implement polling as the primary real-time mechanism.
+
+---
+
+### 5.10 Initial-State Race Handling
+
+Handle the race between:
+
+- initial REST fetch
+- SignalR connection/subscription
+- events occurring during page setup
+
+Use a simple robust strategy.
+
+For example:
+
+1. establish/connect SignalR
+2. subscribe to the run
+3. fetch/re-fetch current REST state
+4. then apply subsequent live events
+
+or another equally safe approach.
+
+The goal is to avoid missing a fast scenario transition while the page is loading.
+
+Do not over-engineer event replay.
+
+The database can always provide the latest authoritative state.
+
+---
+
+### 5.11 Reconnection
+
+Enable automatic SignalR reconnect.
+
+The UI should show a small connection state indication for active runs,
+such as:
+
+Live
+Reconnecting
+Disconnected
+
+Keep it unobtrusive.
+
+After reconnection:
+
+- re-subscribe to the run group
+- re-fetch the current run through REST
+
+This prevents missed transitions from leaving the UI stale.
+
+Do not build a persistent event log/replay protocol in Step 5.
+
+---
+
+### 5.12 Multiple Browser Clients
+
+The design should safely support two browser tabs viewing the same run.
+
+Both should receive the same run-group updates.
+
+No client should own execution state.
+
+Execution state remains entirely backend-owned.
+
+---
+
+### 5.13 React State Updates
+
+When ScenarioUpdated is received:
+
+- locate the matching ScenarioResult by id
+- update that row
+- if a scenario did not yet exist in local state, safely add it
+
+When RunUpdated is received:
+
+- update the run header/status/totals/timestamps
+
+Avoid a full REST reload for every SignalR event.
+
+Use live messages for incremental updates.
+
+Use REST re-fetch only for:
+
+- initial load
+- manual Refresh
+- reconnection recovery
+- unexpected inconsistency
+
+---
+
+### 5.14 Visual Feedback
+
+Use clear status badges or text for:
+
+- Queued
+- Running
+- Passed
+- Failed
+- Expected Fail
+- Skipped
+- Cancelled
+
+Do not redesign the whole frontend.
+
+Keep the existing visual language from Steps 1–4.
+
+Running scenarios should be visually distinguishable from queued/final scenarios.
+
+The user should easily understand that execution is live.
+
+---
+
+### 5.15 Security / Scope
+
+Do not introduce authentication in this step.
+
+Do not expose arbitrary server-side group names from the client.
+
+Use server-generated/predictable run group conventions internally.
+
+Do not allow SignalR messages from the browser to mutate Run or ScenarioResult
+state.
+
+The browser may subscribe/unsubscribe only.
+
+Start/Stop state changes continue through the existing REST APIs.
+
+---
+
+### 5.16 Backend Tests
+
+Add focused tests where practical for the real-time layer.
+
+At minimum verify logic around:
+
+- correct run group naming
+- mapping persisted Run to RunUpdated payload
+- mapping persisted ScenarioResult to ScenarioUpdated payload
+- orchestrator notification path does not alter persisted behavior
+- SignalR transport failure does not incorrectly mark a Run as Failed
+
+Do not try to fully browser-test SignalR only with unit tests.
+
+Keep tests deterministic.
+
+---
+
+### 5.17 Real End-to-End Verification
+
+Perform a real live run through the Part 5 platform.
+
+Open the Run Details page while the run is active.
+
+Verify in a real browser:
+
+- no manual Refresh is used
+- Run status becomes Running automatically
+- scenarios visibly move through lifecycle states
+- final statuses appear automatically
+- totals update automatically
+- run finishes automatically in the UI
+
+Also verify Stop:
+
+1. start another real run
+2. open Run Details
+3. press Stop while active
+4. verify the UI changes to Stopped automatically
+5. verify completed scenarios remain final
+6. verify unfinished scenarios become Cancelled as appropriate
+
+---
+
+### 5.18 Reconnection Verification
+
+Where practical, verify:
+
+1. open an active Run Details page
+2. temporarily disrupt the SignalR connection
+   or stop/restart the frontend connection
+3. observe reconnect state
+4. reconnect
+5. verify the client re-subscribes and re-fetches authoritative state
+
+Do not intentionally disrupt the backend runner process itself just to test this.
+
+---
+
+### 5.19 Historical Runs
+
+Completed historical Run Details pages must still work through REST even if
+SignalR is unavailable.
+
+TM-03 is about live execution.
+
+It must not create a dependency where old runs can only be viewed if a live Hub
+connection exists.
+
+---
+
+### 5.20 Documentation
+
+Update documentation with:
+
+- SignalR Hub route
+- run-group design
+- RunUpdated contract
+- ScenarioUpdated contract
+- REST vs SignalR responsibility
+- reconnect behavior
+- database remains source of truth
+- OW_EVENT -> persistence -> SignalR flow
+
+Document clearly that post-run replay alone would not satisfy TM-03.
+
+---
+
+### 5.21 Scope Boundary
+
+Step 5 DOES NOT implement:
+
+- TM-04 regression/recovery/flakiness history
+- TM-06 test data lifecycle
+- TM-07 dynamic dashboard
+- TM-08 evidence viewing
+- scheduled runs
+- notifications
+- authentication
+- event replay infrastructure
+
+Do not implement bonuses.
+
+---
+
+### Step 5 Definition of Done
+
+Step 5 is DONE only when:
+
+- SignalR Hub exists
+- clients can subscribe to a run-specific group
+- RunOrchestrator broadcasts persisted state changes
+- Run Details hydrates from REST
+- Run Details receives live SignalR updates
+- scenario lifecycle changes appear without Refresh
+- run status/totals update without Refresh
+- Stop updates appear without Refresh
+- automatic reconnect exists
+- reconnect re-subscribes and restores authoritative state
+- execution still works with zero connected clients
+- historical run viewing still works via REST
+- focused backend tests pass
+- dotnet build passes
+- dotnet test passes
+- npm run build passes
+- one real live execution is verified in a browser
+- cancellation is verified live
+- existing Parts 1–4 remain unaffected
+
+After verification:
+
+Update PART5_PLAN.md:
+
+- Step 5 -> DONE
+- TM-03 -> DONE
+- Current Step -> Awaiting review
+
+STOP.
+
+Do not begin Step 6.
 
 ---
 
@@ -2732,9 +3466,7 @@ Verify:
 
 # 10. Current Step
 
-CURRENT STEP: Awaiting review
+CURRENT STEP: Awaiting review / Step 5 (Real-Time Execution / TM-03) is
+DONE and verified — see the Step 5 section above. Steps 1–4 remain DONE.
 
-Step 4 (Run Management & Automation Integration / TM-02) is DONE and
-verified — see the Step 4 section above. Steps 1–3 remain DONE.
-
-Do not implement Step 5 or later without review.
+Do not implement Step 6 or later without review.

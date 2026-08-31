@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using OffenderWatch.TestManagement.Server.Data;
+using OffenderWatch.TestManagement.Server.Hubs;
 using OffenderWatch.TestManagement.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,9 +14,8 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// SignalR — the hub itself is added in Step 5 (Real-Time Execution). The
-// service is wired up now so later steps only need to add a Hub class and
-// map its endpoint.
+// SignalR (TM-03, Step 5) — RunHub broadcasts persisted Run/ScenarioResult
+// changes to clients subscribed to a specific run's group.
 builder.Services.AddSignalR();
 
 // CORS — the React (Vite) dev client runs on a different origin. Origins are
@@ -111,5 +111,6 @@ app.UseCors("ClientApp");
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<RunHub>("/hubs/runs");
 
 app.Run();

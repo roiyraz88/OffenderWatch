@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using OffenderWatch.TestManagement.Server.Data;
 using OffenderWatch.TestManagement.Server.DTOs;
+using OffenderWatch.TestManagement.Server.Hubs;
 using OffenderWatch.TestManagement.Server.Models;
 
 namespace OffenderWatch.TestManagement.Server.Services;
@@ -16,12 +18,21 @@ public class RunService : IRunService
     private readonly TestManagementDbContext _db;
     private readonly RunQueue _queue;
     private readonly RunCancellationRegistry _cancellation;
+    private readonly IHubContext<RunHub> _hub;
+    private readonly ILogger<RunService> _logger;
 
-    public RunService(TestManagementDbContext db, RunQueue queue, RunCancellationRegistry cancellation)
+    public RunService(
+        TestManagementDbContext db,
+        RunQueue queue,
+        RunCancellationRegistry cancellation,
+        IHubContext<RunHub> hub,
+        ILogger<RunService> logger)
     {
         _db = db;
         _queue = queue;
         _cancellation = cancellation;
+        _hub = hub;
+        _logger = logger;
     }
 
     public async Task<RunSummaryDto> CreateAsync(CreateRunRequest request, CancellationToken ct = default)
@@ -124,6 +135,7 @@ public class RunService : IRunService
             run.Status = RunStatus.Stopped;
             run.EndedAtUtc = DateTime.UtcNow;
             await _db.SaveChangesAsync(ct);
+            await BroadcastRunUpdatedAsync(run);
         }
         else if (run.Status == RunStatus.Running && !hadLiveToken)
         {
@@ -134,46 +146,34 @@ public class RunService : IRunService
             run.Status = RunStatus.Stopped;
             run.EndedAtUtc = DateTime.UtcNow;
             await _db.SaveChangesAsync(ct);
+            await BroadcastRunUpdatedAsync(run);
         }
         // Otherwise (Running with a live token): the orchestrator itself
         // observes cancellation, kills the child process, marks pending
-        // ScenarioResults Cancelled, and finalizes the Run to Stopped.
+        // ScenarioResults Cancelled, and finalizes the Run to Stopped —
+        // and broadcasts both, per 5.6.
     }
 
-    private static RunSummaryDto ToSummaryDto(TestRun r) => new()
-    {
-        Id = r.Id,
-        EnvironmentId = r.EnvironmentId,
-        EnvironmentNameSnapshot = r.EnvironmentNameSnapshot,
-        BaseUrlSnapshot = r.BaseUrlSnapshot,
-        Status = r.Status.ToString(),
-        Trigger = r.Trigger.ToString(),
-        CreatedAtUtc = r.CreatedAtUtc,
-        StartedAtUtc = r.StartedAtUtc,
-        EndedAtUtc = r.EndedAtUtc,
-        DurationSeconds = r.StartedAtUtc.HasValue && r.EndedAtUtc.HasValue
-            ? (r.EndedAtUtc.Value - r.StartedAtUtc.Value).TotalSeconds
-            : null,
-        PassedCount = r.PassedCount,
-        FailedCount = r.FailedCount,
-        ExpectedFailedCount = r.ExpectedFailedCount,
-        SkippedCount = r.SkippedCount,
-    };
+    private static RunSummaryDto ToSummaryDto(TestRun r) => RunDtoMapper.ToSummaryDto(r);
 
-    private static ScenarioResultDto ToScenarioResultDto(ScenarioResult sr) => new()
+    private static ScenarioResultDto ToScenarioResultDto(ScenarioResult sr) => RunDtoMapper.ToScenarioResultDto(sr);
+
+    /// <summary>
+    /// Same broadcast-after-persist, fail-soft discipline as
+    /// <see cref="RunOrchestrator"/> (5.4/5.5) for the two paths above where
+    /// this HTTP-facing service — not the orchestrator — is what changes a
+    /// Run's status directly (a Queued run that never started, or an
+    /// orphaned Running row with no live process to cancel).
+    /// </summary>
+    private async Task BroadcastRunUpdatedAsync(TestRun run)
     {
-        Id = sr.Id,
-        TestCaseId = sr.TestCaseId,
-        ExternalId = sr.TestCase.ExternalId,
-        Name = sr.TestCase.Name,
-        Suite = sr.TestCase.Suite.ToString(),
-        RequirementId = sr.TestCase.RequirementId,
-        BugId = sr.TestCase.BugId,
-        Status = sr.Status.ToString(),
-        StartedAtUtc = sr.StartedAtUtc,
-        EndedAtUtc = sr.EndedAtUtc,
-        DurationMs = sr.DurationMs,
-        FailureMessage = sr.FailureMessage,
-        StackTrace = sr.StackTrace,
-    };
+        try
+        {
+            await _hub.Clients.Group(RunHub.GroupName(run.Id)).SendAsync("RunUpdated", RunDtoMapper.ToSummaryDto(run));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Run {RunId}: SignalR broadcast of RunUpdated failed (execution continues unaffected)", run.Id);
+        }
+    }
 }
