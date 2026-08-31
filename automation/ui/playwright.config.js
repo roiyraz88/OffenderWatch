@@ -31,7 +31,12 @@ module.exports = defineConfig({
   use: {
     baseURL,
     trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
+    // Part 5 (Step 6 / TM-08, 6.15) — every scenario needs a final
+    // screenshot, not only failures, so this is 'on' rather than
+    // 'only-on-failure'. Failure evidence is unaffected — a failed test
+    // still gets exactly the same screenshot it always did; it's just no
+    // longer withheld from passing tests too.
+    screenshot: 'on',
     video: 'off',
   },
   projects: [

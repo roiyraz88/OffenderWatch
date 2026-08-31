@@ -154,6 +154,31 @@ public class RunService : IRunService
         // and broadcasts both, per 5.6.
     }
 
+    public async Task<IReadOnlyList<EvidenceArtifactDto>> GetScenarioEvidenceAsync(int runId, int scenarioResultId, CancellationToken ct = default)
+    {
+        var belongsToRun = await _db.ScenarioResults
+            .AnyAsync(sr => sr.Id == scenarioResultId && sr.TestRunId == runId, ct);
+        if (!belongsToRun)
+        {
+            throw new ScenarioResultNotFoundException(runId, scenarioResultId);
+        }
+
+        var artifacts = await _db.EvidenceArtifacts
+            .Where(a => a.ScenarioResultId == scenarioResultId)
+            .OrderBy(a => a.Id)
+            .ToListAsync(ct);
+
+        return artifacts.Select(a => new EvidenceArtifactDto
+        {
+            Id = a.Id,
+            ScenarioResultId = a.ScenarioResultId,
+            Type = a.Type.ToString(),
+            ContentType = a.ContentType,
+            SizeBytes = a.SizeBytes,
+            CreatedAtUtc = a.CreatedAtUtc,
+        }).ToList();
+    }
+
     private static RunSummaryDto ToSummaryDto(TestRun r) => RunDtoMapper.ToSummaryDto(r);
 
     private static ScenarioResultDto ToScenarioResultDto(ScenarioResult sr) => RunDtoMapper.ToScenarioResultDto(sr);

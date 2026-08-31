@@ -241,3 +241,113 @@ tr.failure-row td {
   background: rgba(127, 127, 127, 0.15);
   border-color: rgba(127, 127, 127, 0.3);
 }
+
+/* TM-04 / TM-08 (Step 6) */
+
+.flaky-badge {
+  font-size: 0.8em;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  color: #6a4a00;
+  background: rgba(230, 160, 20, 0.2);
+  border: 1px solid rgba(230, 160, 20, 0.4);
+}
+
+.transition-badge {
+  font-size: 0.8em;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.transition-regression {
+  color: #a11;
+  background: rgba(204, 51, 51, 0.12);
+}
+
+.transition-recovery {
+  color: #1a7a3d;
+  background: rgba(42, 170, 119, 0.15);
+}
+
+.transition-stillfailing {
+  color: #a05fd6;
+  background: rgba(160, 95, 214, 0.12);
+}
+
+.transition-stillpassing,
+.transition-firstresult,
+.transition-neutral {
+  color: #666;
+  background: rgba(127, 127, 127, 0.1);
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #2670c9;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+}
+
+.evidence-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.evidence-panel {
+  background: #fff;
+  border-radius: 8px;
+  max-width: 720px;
+  width: 90%;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+}
+
+.evidence-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.evidence-item {
+  border-top: 1px solid #eee;
+  padding: 0.75rem 0;
+}
+
+.evidence-item-label {
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.evidence-text {
+  background: #f6f6f6;
+  padding: 0.6rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.evidence-screenshot {
+  max-width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.evidence-download {
+  display: inline-block;
+}

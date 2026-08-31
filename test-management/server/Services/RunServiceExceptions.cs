@@ -15,3 +15,20 @@ public class RunConflictException : Exception
     {
     }
 }
+
+/// <summary>Requested ScenarioResult does not exist, or does not belong to the requested Run (6.18). Maps to 404.</summary>
+public class ScenarioResultNotFoundException : Exception
+{
+    public ScenarioResultNotFoundException(int runId, int scenarioResultId)
+        : base($"ScenarioResult {scenarioResultId} was not found in Run {runId}.")
+    {
+    }
+}
+
+/// <summary>Requested TestCase does not exist. Maps to 404.</summary>
+public class TestCaseNotFoundException : Exception
+{
+    public TestCaseNotFoundException(int id) : base($"TestCase {id} was not found.")
+    {
+    }
+}

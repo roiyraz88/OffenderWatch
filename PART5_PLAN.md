@@ -156,11 +156,11 @@ test-management/
 | TM-01 | Environment configuration | DONE |
 | TM-02 | Run execution & management | DONE |
 | TM-03 | Real-time progress | DONE |
-| TM-04 | Test history | Planned |
+| TM-04 | Test history | DONE |
 | TM-05 | Persistence | Planned |
 | TM-06 | Test data lifecycle | Planned |
 | TM-07 | Summary dashboard | Planned |
-| TM-08 | Evidence capture | Planned |
+| TM-08 | Evidence capture | DONE |
 
 Status must only be changed when the requirement actually works.
 
@@ -3396,11 +3396,1119 @@ Do not begin Step 6.
 
 ---
 
-## Step 6 — History & Evidence
+## Step 6 — Test History & Evidence (TM-04 + TM-08)
 
-Implement TM-04 and TM-08.
+**STATUS: DONE (2026-08-31). TM-04 -> DONE. TM-08 -> DONE.**
 
-Details will be defined before implementation.
+Implemented Part A (6.1–6.8) and Part B (6.9–6.23) with no redesign of
+Steps 4–5 — `OW_EVENT` gained exactly one new event type
+(`artifact_created`, metadata only, never a binary payload), and history is
+derived entirely on read from the existing TestCase/ScenarioResult/TestRun
+tables, no new table. First confirmed Steps 1–5 were intact (`dotnet
+build`, `dotnet test` = 38/38, `npm run build`, all clean before starting).
+
+### Files added/changed
+
+**automation/ (minimal, integration-only):**
+- `automation/api/evidence_capture.py` (new) — a small module, wired into
+  the shared `session` fixture's `requests` response hook
+  (`conftest.py`), that observes every HTTP call a scenario's shared
+  session makes and exposes the last request/response pair for that
+  scenario. No test file references it or changed. Redacts sensitive
+  headers (`Authorization`/`Cookie`/tokens/API keys) via a denylist regex
+  before anything is ever written.
+- `automation/api/conftest.py` — wires `evidence_capture.record` onto the
+  session's response hook, adds `pytest_runtest_setup` to reset capture
+  per scenario.
+- `automation/api/ow_event_reporter.py` — `_finish` now also writes
+  `execution.log` (nodeid/status/duration/pytest's own captured
+  stdout+log/failure info) and, when the session captured an HTTP
+  exchange, `api-request.json`/`api-response.json`, then emits one
+  `artifact_created` OW_EVENT per file — only when
+  `OFFENDERWATCH_ARTIFACT_DIR` is set (unset = standalone run, evidence
+  capture silently skipped, suite behavior otherwise identical).
+- `automation/ui/playwright.config.js` — `screenshot: 'only-on-failure'`
+  -> **`'on'`** (6.15's explicit requirement to not rely only on
+  failure-only screenshots); `trace: 'retain-on-failure'` unchanged.
+- `automation/ui/reporters/ow-event-reporter.js` — `onTestEnd` now also
+  writes `execution.log` (steps/stdout/stderr/failure info) and copies
+  Playwright's own screenshot/trace test-result attachments into the
+  scenario's evidence folder, emitting one `artifact_created` per file —
+  same `OFFENDERWATCH_ARTIFACT_DIR`-gated behavior as the API side.
+- `automation/README.md` — documents `OFFENDERWATCH_ARTIFACT_DIR`,
+  `evidence_capture.py`, and the `screenshot:'on'` change.
+
+**A real bug caught and fixed during standalone regression verification**:
+`requests`' response hooks are called as `hook(response, **kwargs)` (extra
+kwargs like `timeout` are always passed) — `evidence_capture.record(response)`
+without `**_kwargs` raised `TypeError` on every single request, which
+would have silently broken the entire suite (15 failed + 7 errors instead
+of the real 17 failed/5 passed baseline) the moment it ran with a real
+`OFFENDERWATCH_BASE_URL`. Caught immediately by running the standalone
+regression check before touching anything else; fixed by accepting
+`**_kwargs`.
+
+**test-management/server/:**
+- `Services/OwEvent.cs` — added `ArtifactType`/`Path`/`ContentType` fields
+  for `artifact_created`.
+- `Services/RunnerOptions.cs` / `appsettings.json` — new
+  `ArtifactRootRelativeToContentRoot` (`"../artifacts"`), resolved the
+  same way every other configured path is (never hard-coded).
+- `Services/RunOrchestrator.cs` — `ArtifactRoot`/`RunArtifactRoot`
+  properties; `Directory.CreateDirectory(RunArtifactRoot)` once per run
+  before launching pytest; `OFFENDERWATCH_ARTIFACT_DIR` added to both
+  phases' `ProcessStartInfo.EnvironmentVariables` (alongside
+  `OFFENDERWATCH_BASE_URL`); `PersistEventAsync` dispatches
+  `artifact_created` to `HandleArtifactCreatedAsync`, which: resolves the
+  scenario by `ExternalId` (ignored if unknown — no exception), resolves
+  the reported `Path` against `RunArtifactRoot` and **rejects it if the
+  resolved absolute path doesn't stay strictly inside that run's own
+  directory** (path traversal) or the file doesn't actually exist,
+  computes `SizeBytes` from the real file (never a runner-reported value),
+  and adds a **new** `EvidenceArtifact` row — never an update of an
+  existing one, which is what makes historical evidence immutable (6.10).
+  `FindScenarioResultAsync`/`CancelPendingScenariosAsync` now
+  `.Include(sr => sr.TestCase)` (needed by the evidence path too).
+- `Services/HistoryClassifier.cs` (new) — the pure 6.3/6.4/6.5/6.6 rules
+  (transitions, current-failure-streak start, last-pass, flakiness),
+  operating on a chronological `ScenarioStatus` sequence with no DB
+  dependency, directly unit-tested.
+- `Services/ITestHistoryService.cs`/`TestHistoryService.cs` (new) — loads
+  each TestCase's ScenarioResults ordered by the owning Run's
+  `CreatedAtUtc` (runs execute strictly sequentially — Step 4's single
+  background worker — so run-creation order is execution order), and
+  builds the summary/detail DTOs entirely from `HistoryClassifier` output;
+  nothing derived here is persisted anywhere.
+- `Controllers/TestsController.cs` (new) — `GET /api/tests`,
+  `GET /api/tests/{id}/history`.
+- `Services/IRunService.cs`/`RunService.cs` — added
+  `GetScenarioEvidenceAsync` (validates the ScenarioResult belongs to the
+  given Run before returning its evidence metadata — never a filesystem
+  path in the response).
+- `Controllers/RunController.cs` — added
+  `GET /api/runs/{runId}/scenarios/{scenarioResultId}/evidence`.
+- `Controllers/EvidenceController.cs` (new) — `GET /api/evidence/{id}/content`:
+  resolves the artifact's relative path against the configured artifact
+  root **again, at request time** (not trusting the ingestion-time
+  validation alone), re-rejects anything that resolves outside that root
+  or doesn't exist (404), and streams the file back with its recorded
+  `Content-Type`.
+- `Services/RunServiceExceptions.cs` — added
+  `ScenarioResultNotFoundException`/`TestCaseNotFoundException` (both
+  404), wired into `Program.cs`'s exception-mapping switch.
+- `DTOs/EvidenceDtos.cs`/`TestDtos.cs` (new).
+- `Program.cs` — registered `ITestHistoryService`; no other architectural
+  change.
+
+**test-management/client/:**
+- `types/test.ts`, `api/tests.ts`, `types/evidence.ts`, `api/evidence.ts`
+  (new) — typed layers, same pattern as every earlier step's API modules.
+- `components/EvidencePanel.tsx` (new) — a simple panel (6.19, explicitly
+  not a full report viewer): logs and API request/response JSON fetched
+  and shown inline as text, screenshots as `<img src=.../content>`, a
+  trace offered as a download link. Never receives or handles a raw
+  filesystem path — only artifact ids.
+- `pages/RunDetailPage.tsx` — added an "Evidence" column/action per
+  finished scenario row, opening `EvidencePanel` for that exact
+  `ScenarioResult`.
+- `pages/TestsPage.tsx` (replaces the Step-1 placeholder) — real TestCases
+  table with a Flaky indicator, row click -> `/tests/:id`.
+- `pages/TestDetailPage.tsx` (new) — `/tests/:id`: identity/metadata, Last
+  Pass and Currently-Failing-Since (each linking to the relevant Run),
+  Flaky status, and the full chronological history table with a
+  Transition badge per row, each row linking to its Run Details page.
+- `App.tsx` — added the `/tests/:id` route.
+- `index.css` — flaky badge, transition badges, evidence panel/backdrop
+  styling, `.link-button`.
+
+**test-management/server.Tests/ (30 new tests, 68 total with Steps 3–5's 38):**
+- `HistoryClassifierTests.cs` (13) — every rule in 6.3/6.4/6.5/6.6 directly
+  as pure-function tests, including the exact worked examples from the
+  plan (Regression/Recovery/StillFailing streak-start/recovery-clears-it/
+  neutral-doesn't-break-a-streak/last-10-window-only/all four documented
+  flakiness examples).
+- `TestHistoryServiceTests.cs` (5) — end-to-end through the real service
+  against a seeded DB: history stays chronologically ordered regardless of
+  insertion order, a real Regression-then-Recovery sequence produces the
+  right transitions, CurrentFailureSince/LastPass resolve correctly,
+  `GetAllAsync` returns every TestCase, unknown id -> 404.
+- `EvidenceTests.cs` (10 — plus 2 covering `EvidenceController` directly)
+  — using `RunOrchestrator`'s existing `ApplyEventForTestingAsync` seam
+  against a temporary artifact directory (never `test-management/
+  artifacts/` itself): evidence registers against the exact
+  ScenarioResult; an artifact for an unknown scenario is ignored, not
+  thrown; **path traversal is rejected**; a referenced-but-missing file is
+  ignored; an unrecognized artifact type is ignored; **older-run evidence
+  is not replaced by a later run of the same TestCase** (6.10, the core
+  immutability guarantee — asserted both at the DB-row level and by
+  reading each run's file back and confirming its content is still its
+  own); `EvidenceController.GetContent` returns the right file/Content-Type
+  for a valid id and 404 for an unknown one; cancelling a run's remaining
+  scenarios never touches evidence already registered for a scenario that
+  had already finished.
+
+### Design decisions / deviations
+
+- **Evidence folder naming deviates from the plan's literal suggestion**
+  (`scenario-{scenarioResultId}/`) — exactly per 6.14's own documented
+  fallback: a runner cannot know its own `ScenarioResultId` (it only knows
+  its stable `ExternalId`, decided before any Part 5 database round trip),
+  so each scenario's folder is named from a sanitized `ExternalId`
+  instead. Ownership stays unambiguous because (a) each run gets its own
+  `run-{runId}/` root, so the same `ExternalId` in two different runs
+  never collides on disk, and (b) the actual ownership authority is always
+  the `EvidenceArtifact.ScenarioResultId` foreign key in SQLite, never the
+  folder name.
+- **API evidence captures the *last* request/response the scenario's
+  session observed**, not every request — 6.16 asks for "at minimum...
+  the final request and response," and for every test in this suite
+  (single assertion per scenario, immediately following the relevant call)
+  the last observed exchange is the relevant one; confirmed empirically
+  during real verification (e.g. the 404 tests' captured request/response
+  pair is exactly the failing `GET` itself).
+- **One screenshot serves both "final" and "failure" evidence for UI
+  scenarios** rather than two separate files — `screenshot:'on'` produces
+  exactly one screenshot per test (taken at test end regardless of
+  outcome); richer *failure* evidence for UI scenarios instead comes from
+  the combination of that screenshot + `FailureMessage`/`StackTrace`
+  (already persisted on `ScenarioResult` since Step 4) + the trace file —
+  together satisfying 6.12's list without an artificial second screenshot.
+- **No `ScenarioUpdated`/SignalR change for evidence availability** — 6.23
+  explicitly makes this optional ("if useful"); evidence for an active
+  scenario is only ever checked after that scenario reaches a final status
+  (the Evidence action is hidden for Queued/Running rows), so the existing
+  REST evidence-listing endpoint is sufficient and Step 5's SignalR
+  contract is untouched, per the explicit "do not redesign Step 5" instruction.
+
+### Verified
+
+**Backend:**
+- `dotnet build` (server) — 0 warnings, 0 errors.
+- `dotnet test` (`server.Tests`) — **68/68 passed** (38 from Steps 3–5 +
+  30 new).
+- Standalone regression check — both suites still run exactly as before
+  (and independently of the platform) once `OFFENDERWATCH_BASE_URL` is
+  set: pytest **17 failed / 5 passed**, Playwright **9 failed / 2 passed**
+  — both exactly the established baseline. With
+  `OFFENDERWATCH_ARTIFACT_DIR` also set (a throwaway directory), a
+  smoke-test run confirmed every scenario writes real evidence files
+  (`execution.log` + `api-request.json`/`api-response.json` for API;
+  `execution.log` + `final.png` [+ `trace.zip` on failure] for UI) with
+  correct, real content (inspected directly).
+
+**Real end-to-end integration (6.26), through the Part 5 system:**
+1. Fresh migrated SQLite DB, clean `artifacts/`. Real Environment
+   ("Roie") created through the platform's own API.
+2. **Run 1** (real app): 33 scenarios, 7 passed/0 failed/26 ExpectedFail —
+   the established baseline. `artifacts/run-1/` contained exactly **97
+   files** (22 API scenarios × 3 files [log+request+response] = 66; 11 UI
+   scenarios: 2 passed × 2 files [log+screenshot] + 9 failed × 3 files
+   [log+screenshot+trace] = 31; 66+31=97) — every single completed
+   scenario had its required evidence, verified by direct file-count, not
+   just DB row count.
+3. Read `GET /api/runs/1/scenarios/{id}/evidence` for one representative
+   scenario of each kind (API-passed, API-failed, UI-passed, UI-failed)
+   and confirmed the exact expected artifact set/types/sizes for each.
+4. `GET /api/evidence/{id}/content` returned a real, valid 1280×720 PNG
+   with `Content-Type: image/png` for a screenshot id; an unknown id
+   returned a plain **404**.
+5. **In a real Chromium browser** (Playwright driving it — a throwaway
+   verification script, deleted after): opened `/runs/1`, clicked
+   **Evidence** on a scenario, confirmed the panel showed the correct
+   artifact list; opened it on the known BUG-001 UI scenario and confirmed
+   Log + Screenshot + Trace all listed, the screenshot `<img>` actually
+   rendered, and the log text loaded and showed real pytest/Playwright
+   execution detail.
+
+**Old-run evidence immutability (6.20) — the core TM-08 requirement:**
+1. Hashed Run 1's BUG-001 scenario screenshot (`md5`) before anything
+   else executed.
+2. Ran **Run 2** (real app, same TestCases) and **Run 3** (see
+   Regression/Recovery below) and **Run 4** — three more full runs.
+3. Re-fetched the exact same evidence id via `GET /api/evidence/{id}/content`
+   — **byte-for-byte identical MD5 hash** to the one taken before Runs
+   2–4 executed.
+4. **In the real browser**, after all four runs had executed: navigated
+   back to `/runs/1` (the oldest run), opened the same BUG-001 scenario's
+   evidence — Log/Screenshot/Trace all still present, the screenshot still
+   rendered. Confirmed live, not just by hash comparison.
+
+**Regression/Recovery demonstration (6.27) — documented exactly:**
+Two full real runs against the real demo app (Run 1, Run 2) produced
+byte-for-byte identical scenario outcomes, confirming this app's defects
+are deterministic, not flaky — the honest Part 3 finding, not a limitation
+of this platform. To produce a genuine transition **without changing any
+assertion or touching any persisted row directly**, a temporary local HTTP
+stub server was started (stdlib `http.server`, not part of any
+deliverable) that answers `GET /api/offenders` with an empty list — a
+*real, different* target. It was registered as a real Environment through
+the platform's own `/environments` page
+(`Step6-Demo-Local-Mock`, `http://127.0.0.1:8791`) — exactly the
+"legitimate scenario/environment/setup" 6.27 anticipates for a
+deterministic-defect app. Recorded sequence (verified via
+`GET /api/tests/2/history` and live on `/tests/2` in the browser):
+
+| Run | Environment | Result | Transition |
+|---|---|---|---|
+| 1 | Roie (real app) | Passed | FirstResult |
+| 2 | Roie (real app) | Passed | StillPassing |
+| 3 | Step6-Demo-Local-Mock | **Failed** | **Regression** |
+| 4 | Roie (real app) | Passed | **Recovery** |
+
+for `test_search_is_partial_match` — its own real assertion
+(`_pick_live_offender` raises "no offender with a usable last name found")
+genuinely failed against the stub's empty offender list, and genuinely
+passed again the moment execution returned to the real app. No test file,
+assertion, or fixture was modified for this; no `ScenarioResult`/`TestRun`
+row was ever written to directly. The stub server, its Environment row,
+and Run 3 existed for this verification only — the Environment was deleted
+afterward through the real `DELETE /api/environments/{id}` endpoint, and
+Run 3's snapshot (`EnvironmentNameSnapshot: "Step6-Demo-Local-Mock"`,
+`EnvironmentId: null`) was confirmed to survive that deletion exactly as
+Step 3 designed (a second, incidental live confirmation of 3.5/6.22 — "an
+Environment's deletion never deletes historical Run data or evidence").
+
+**Frontend:**
+- `npm run build` (`tsc -b && vite build`) — clean.
+- Housekeeping: `cleanup_test_data.py` found **0** leftover AUTO-prefixed
+  offenders after all four real runs.
+
+Not implemented (correctly, per the 6.29 scope boundary): TM-06 test-data
+lifecycle UI/cleanup, TM-07 dynamic dashboard, scheduled execution,
+notifications, authentication, run comparison, evidence retention/deletion
+policies.
+
+Housekeeping: the verification `test-management/data/testmanagement.db`
+and `test-management/artifacts/` were deleted after this step's checks
+(same reasoning as Steps 2–5 — throwaway dev/verification data;
+deliverable #6's committed DB+evidence with real recorded runs is a Step 9
+concern).
+
+STOP after Step 6. Awaiting review before Step 7 (Test Data Lifecycle).
+
+---
+
+### Step 6 spec (as implemented, kept verbatim below for reference)
+
+Status: READY FOR IMPLEMENTATION
+
+### Goal
+
+Implement two related capabilities on top of the stable execution
+pipeline from Steps 4–5:
+
+1. Per-Test execution history and state-change analysis.
+2. Immutable evidence attached to the exact Run + ScenarioResult.
+
+Do not redesign execution, OW_EVENT, SignalR, or existing runner behavior.
+
+Existing architecture remains:
+
+Runner
+  |
+  | OW_EVENT
+  v
+RunOrchestrator
+  |
+  +--> ScenarioResult / TestCase persistence
+  +--> Evidence capture
+  +--> SignalR
+  |
+  v
+SQLite + artifacts/
+
+History is derived from persisted TestCase + ScenarioResult data.
+
+No separate History table is required.
+
+---
+
+# Part A — TM-04 Test History
+
+### 6.1 Tests API
+
+Implement:
+
+GET /api/tests
+
+Return persisted TestCases.
+
+Include at least:
+
+- Id
+- ExternalId
+- Name
+- Suite
+- RequirementId
+- BugId
+- LastStatus
+- LastRunId
+- LastExecutedAtUtc
+
+Where practical also return:
+
+- IsFlaky
+- CurrentFailureSinceUtc
+
+Do not duplicate historical results into TestCase.
+
+Derive current/history information from ScenarioResults.
+
+---
+
+### 6.2 Test History API
+
+Implement:
+
+GET /api/tests/{id}/history
+
+Return the selected TestCase plus its ScenarioResults in chronological
+order.
+
+Each history entry must contain at least:
+
+- RunId
+- EnvironmentNameSnapshot
+- RunStartedAtUtc
+- ScenarioResultId
+- Status
+- StartedAtUtc
+- EndedAtUtc
+- DurationMs
+- FailureMessage
+
+The history must be derived from the existing stable TestCase identity.
+
+Do not create a second copy of historical result data.
+
+---
+
+### 6.3 History State Classification
+
+For each chronological execution, derive a transition/state.
+
+Use final scenario statuses only.
+
+Relevant final statuses:
+
+- Passed
+- Failed
+- ExpectedFail
+- Skipped
+- Cancelled
+
+For regression/recovery analysis:
+
+Failure-like:
+- Failed
+- ExpectedFail
+
+Success-like:
+- Passed
+
+Neutral / non-comparable:
+- Skipped
+- Cancelled
+
+Classification:
+
+Regression:
+previous comparable result = Passed
+current comparable result = Failed or ExpectedFail
+
+Recovery:
+previous comparable result = Failed or ExpectedFail
+current comparable result = Passed
+
+StillFailing:
+previous comparable result = Failed or ExpectedFail
+current comparable result = Failed or ExpectedFail
+
+StillPassing:
+previous comparable result = Passed
+current comparable result = Passed
+
+FirstResult:
+no previous comparable result exists
+
+Skipped and Cancelled must not create false Regression or Recovery transitions.
+
+When determining the previous comparable result, skip neutral results.
+
+---
+
+### 6.4 Current Failing Since
+
+For a TestCase whose latest comparable result is failure-like,
+calculate when the current continuous failure streak began.
+
+Example:
+
+Run 1 Passed
+Run 2 Failed
+Run 3 Failed
+Run 4 ExpectedFail
+
+Current failing since = Run 2
+
+If:
+
+Run 5 Passed
+
+then the test is recovered and CurrentFailureSince becomes null.
+
+Skipped / Cancelled between failures do not break the comparable failure streak.
+
+Return enough information for the UI to show:
+
+"Still failing since <date/run>"
+
+Do not persist a redundant derived field unless clearly justified.
+
+---
+
+### 6.5 Last Pass
+
+For each TestCase history, derive:
+
+- last successful RunId
+- last successful timestamp
+
+If the test has never passed, return null.
+
+This should be visible on the Test Details page.
+
+---
+
+### 6.6 Flakiness
+
+Implement a simple deterministic flakiness definition.
+
+A TestCase is considered flaky when, within its most recent comparable
+execution window, it has switched between success-like and failure-like
+states more than once.
+
+Use up to the last 10 comparable executions.
+
+Ignore:
+
+- Skipped
+- Cancelled
+
+Example:
+
+Passed -> Failed -> Passed
+
+= flaky
+
+Passed -> Failed -> Failed
+
+= regression/still failing, not flaky
+
+Failed -> Passed
+
+= recovery, not automatically flaky
+
+Passed -> Failed -> Passed -> Failed
+
+= flaky
+
+Document the exact heuristic.
+
+Do not attempt statistical flakiness scoring in the core implementation.
+
+---
+
+### 6.7 Tests React Page
+
+Replace the existing /tests placeholder.
+
+Display real persisted TestCases.
+
+At minimum show:
+
+- Test
+- Suite
+- Requirement
+- Bug
+- Last Status
+- Last Run
+- Last Execution
+- Flaky indicator
+
+Allow navigation to:
+
+/tests/:id
+
+Do not hard-code tests.
+
+---
+
+### 6.8 Test Details React Page
+
+Add:
+
+/tests/:id
+
+Display:
+
+- Name
+- ExternalId
+- Suite
+- RequirementId
+- BugId
+- Last Status
+- Last Pass
+- Current failing since
+- Flaky status
+
+Display chronological execution history.
+
+For each execution show:
+
+- Run
+- Environment
+- Date
+- Status
+- Duration
+- Transition:
+  - First Result
+  - Regression
+  - Recovery
+  - Still Failing
+  - Still Passing
+
+Allow navigation from a history entry to the corresponding Run Details
+and ScenarioResult evidence where available.
+
+---
+
+# Part B — TM-08 Evidence
+
+### 6.9 Evidence Storage Strategy
+
+Use the architecture already selected in the project:
+
+Binary/text artifacts on disk:
+
+test-management/artifacts/
+
+SQLite stores EvidenceArtifact metadata and relative paths.
+
+Do NOT store large screenshot/trace binaries as SQLite BLOBs.
+
+Reason:
+
+- keeps SQLite small
+- evidence remains simple to inspect
+- assignment explicitly permits disk path + metadata
+- easier interview explanation
+
+Evidence paths must be relative, not machine-specific absolute paths.
+
+Suggested hierarchy:
+
+artifacts/
+  run-{runId}/
+    scenario-{scenarioResultId}/
+      execution.log
+      final.png
+      failure.png
+      api-request.json
+      api-response.json
+      trace.zip
+
+Exact filenames may vary, but ownership must remain unambiguous.
+
+---
+
+### 6.10 Evidence Ownership & Immutability
+
+Every artifact must belong to exactly one ScenarioResult.
+
+EvidenceArtifact already contains:
+
+- ScenarioResultId
+- Type
+- RelativePath
+- ContentType
+- SizeBytes
+- CreatedAtUtc
+
+Once a ScenarioResult is finalized, its historical evidence must not be
+silently replaced by evidence from a later Run.
+
+Never use one shared filename for evidence from different runs.
+
+Never point an old ScenarioResult to a "latest screenshot".
+
+Historical evidence must remain inspectable after later runs execute.
+
+---
+
+### 6.11 Evidence Requirement — Every Scenario
+
+Every executed scenario must store:
+
+1. Execution log
+2. Final snapshot
+
+Interpret final snapshot by suite:
+
+UI scenario:
+- final browser screenshot
+
+API scenario:
+- final request/response snapshot
+
+For API scenarios, the request and response may be represented as separate
+EvidenceArtifacts:
+
+- ApiRequest
+- ApiResponse
+
+These together satisfy the API final snapshot requirement.
+
+For UI scenarios, store a final screenshot even when the scenario passes.
+
+Do not rely only on Playwright's current screenshot-on-failure setting for
+the final snapshot requirement.
+
+---
+
+### 6.12 Failure Evidence
+
+For Failed and ExpectedFail scenarios, preserve richer evidence.
+
+UI failure should include where available:
+
+- execution log up to failure
+- FailureMessage
+- StackTrace
+- final screenshot
+- failure screenshot
+- Playwright trace if produced
+
+API failure should include where available:
+
+- execution log up to failure
+- FailureMessage
+- StackTrace
+- offending/final API request
+- offending/final API response
+
+Do not fabricate evidence that the runner cannot actually observe.
+
+---
+
+### 6.13 Runner Evidence Protocol
+
+Extend the existing runner integration conservatively.
+
+Do NOT send binary screenshot contents through OW_EVENT stdout.
+
+OW_EVENT may carry artifact metadata/path information.
+
+Example logical event:
+
+artifact_created
+
+with fields such as:
+
+- ExternalId
+- artifactType
+- path
+- contentType
+- timestampUtc
+
+Paths emitted by runners must refer to files created inside a
+run-specific working/artifact directory supplied by the orchestrator.
+
+The backend then validates and registers the artifact as EvidenceArtifact.
+
+Never trust an arbitrary path outside the configured run artifact directory.
+
+---
+
+### 6.14 Run Artifact Directory
+
+Before launching a suite, the orchestrator creates the Run artifact root.
+
+Example:
+
+test-management/artifacts/run-123/
+
+Pass the artifact root to runners using an environment variable such as:
+
+OFFENDERWATCH_ARTIFACT_DIR
+
+The runners must write only their Part 5 evidence beneath that directory.
+
+Scenario-specific subdirectories should use the persisted ScenarioResultId
+where practical.
+
+If the runner cannot know ScenarioResultId early enough, use a safe temporary
+stable-identity folder and let the backend move/register the artifacts after
+ScenarioResult resolution.
+
+Keep the implementation understandable.
+
+Do not encode unsafe raw test names directly into filesystem paths.
+
+---
+
+### 6.15 UI Screenshot Capture
+
+Extend the Playwright integration so every scenario has a final screenshot.
+
+Use reporter/test lifecycle APIs where technically reliable.
+
+Do not change test assertions.
+
+Do not remove existing:
+
+- HTML report
+- JSON report
+- trace behavior
+- failure screenshot behavior
+
+For failed UI scenarios preserve richer failure evidence.
+
+Associate generated files with the exact ExternalId/ScenarioResult.
+
+---
+
+### 6.16 API Request/Response Capture
+
+Implement API evidence without rewriting every API test individually if
+reasonably possible.
+
+Prefer a centralized/instrumented requests.Session approach in the existing
+pytest fixtures/plugin.
+
+Capture relevant request/response information for each currently executing
+scenario.
+
+At minimum capture the final request and response associated with the scenario.
+
+For failed/ExpectedFail scenarios, capture the request/response pair most
+relevant to the failure where technically determinable.
+
+Store useful fields such as:
+
+Request:
+- method
+- URL
+- headers where safe/useful
+- request body where present
+
+Response:
+- status code
+- headers where useful
+- response body
+
+Do not persist secrets, authentication tokens, cookies, or sensitive headers
+if any are present.
+
+Do not modify API assertions merely to make evidence capture easier.
+
+---
+
+### 6.17 Execution Logs
+
+Every scenario must receive an execution log artifact.
+
+The log should contain useful runner execution information for that scenario.
+
+Do not merely store one global run log and point every scenario to the same
+mutable file.
+
+Scenario logs must remain exact historical evidence.
+
+For failure scenarios, ensure the log includes information up to the failure.
+
+FailureMessage and StackTrace remain persisted in ScenarioResult as well.
+
+---
+
+### 6.18 Evidence API
+
+Implement:
+
+GET /api/runs/{runId}/scenarios/{scenarioResultId}/evidence
+
+Validate that the ScenarioResult belongs to the requested Run.
+
+Return EvidenceArtifact metadata.
+
+Implement a safe artifact retrieval endpoint, for example:
+
+GET /api/evidence/{evidenceArtifactId}/content
+
+Behavior:
+
+- resolve artifact through SQLite metadata
+- resolve the configured artifact root
+- prevent path traversal
+- verify file exists
+- return correct Content-Type
+- return 404 when metadata/file does not exist
+
+Do not expose arbitrary filesystem paths.
+
+---
+
+### 6.19 Run Details Evidence UI
+
+Enhance:
+
+/runs/:id
+
+For each scenario provide an Evidence action when artifacts exist.
+
+Allow the user to inspect evidence associated with that exact ScenarioResult.
+
+At minimum support:
+
+- text/log viewing
+- screenshot viewing
+- API request JSON viewing
+- API response JSON viewing
+
+Trace ZIP may be offered as a file artifact.
+
+Do not implement a complex report viewer.
+
+A simple modal/panel/page is sufficient.
+
+---
+
+### 6.20 Old Failure Inspection
+
+Explicitly verify:
+
+1. Execute Run A containing an ExpectedFail/Failed scenario.
+2. Open its evidence.
+3. Execute Run B.
+4. Return to Run A.
+5. Open the same scenario.
+6. Verify Run A's screenshot/log/API evidence is still the original evidence
+   from Run A.
+
+This is a core TM-08 requirement.
+
+---
+
+### 6.21 Evidence and Stop
+
+If a scenario finishes before Stop:
+- preserve its evidence normally.
+
+If a scenario is Cancelled before evidence is produced:
+- do not fabricate final evidence.
+
+If partial useful evidence exists:
+- it may be retained and registered.
+
+Cancellation must not delete evidence from already-completed scenarios.
+
+---
+
+### 6.22 Evidence Cleanup Policy
+
+Do NOT automatically delete historical evidence after a run.
+
+Evidence retention is required for historical inspection.
+
+Deleting an Environment must not delete historical Run evidence.
+
+Test-data cleanup in Step 7 must not delete execution evidence.
+
+---
+
+### 6.23 SignalR Boundary
+
+Do not send artifact binary contents over SignalR.
+
+If useful, a ScenarioUpdated message may cause the UI to know evidence is
+available after persistence.
+
+REST evidence endpoints remain the source for artifact retrieval.
+
+Do not redesign Step 5 SignalR.
+
+---
+
+### 6.24 Backend Tests — History
+
+Add focused deterministic tests for:
+
+- Passed -> Failed = Regression
+- Failed -> Passed = Recovery
+- Failed -> Failed = StillFailing
+- Passed -> Passed = StillPassing
+- neutral Skipped/Cancelled does not create false transition
+- CurrentFailureSince begins at correct run
+- recovery clears CurrentFailureSince
+- LastPass resolves correctly
+- flakiness heuristic works
+- TestCase history remains ordered
+
+---
+
+### 6.25 Backend Tests — Evidence
+
+Add focused tests for:
+
+- EvidenceArtifact belongs to exact ScenarioResult
+- scenario/run ownership validation
+- artifact relative-path resolution
+- path traversal rejection
+- missing artifact returns 404
+- old ScenarioResult evidence is not replaced by later Run evidence
+- correct Content-Type returned
+- cancellation does not remove completed evidence
+
+Tests should use temporary artifact directories.
+
+Do not depend on the external demo site for deterministic self-tests.
+
+---
+
+### 6.26 Real Integration Verification
+
+Perform at least one real platform-started run and verify:
+
+For UI scenario:
+- execution log exists
+- final screenshot exists
+- failed/ExpectedFail screenshot evidence exists where applicable
+- trace exists where Playwright generated one
+
+For API scenario:
+- execution log exists
+- request evidence exists
+- response evidence exists
+- failed/ExpectedFail evidence is useful
+
+Verify through the React UI, not only filesystem inspection.
+
+---
+
+### 6.27 History Verification
+
+Use persisted runs to demonstrate at least one meaningful history transition.
+
+The final assignment requires a visible Regression / Recovery.
+
+Do NOT fake a test result in production data.
+
+Create the transition through real executions/configuration where safely
+possible.
+
+If a real product defect is consistently failing and therefore cannot naturally
+recover, use another legitimate scenario/environment/setup that produces a real
+Pass -> Fail -> Pass sequence without changing assertions solely to fabricate
+history.
+
+Document exactly how the demonstrated transition was produced.
+
+---
+
+### 6.28 Documentation
+
+Update README documentation with:
+
+History:
+- stable TestCase identity
+- chronological ScenarioResult derivation
+- transition rules
+- CurrentFailureSince
+- LastPass
+- flakiness heuristic
+
+Evidence:
+- disk + SQLite metadata architecture
+- artifact directory structure
+- evidence ownership
+- immutable historical evidence
+- UI screenshot capture
+- API request/response capture
+- safe retrieval/path validation
+- retention behavior
+
+Explain why disk storage was chosen instead of SQLite BLOBs.
+
+---
+
+### 6.29 Scope Boundary
+
+Step 6 DOES NOT implement:
+
+- TM-06 Test Data cleanup
+- TM-07 Dashboard
+- scheduled runs
+- notifications
+- authentication
+- run comparison bonus
+- evidence retention deletion policies
+
+Do not implement bonuses.
+
+---
+
+### Step 6 Definition of Done
+
+Step 6 is DONE only when:
+
+TM-04:
+- /api/tests returns real TestCases
+- /api/tests/{id}/history works
+- React Tests page works
+- React Test Details/history works
+- Regression is distinguishable
+- Recovery is distinguishable
+- StillFailing/current failure streak works
+- LastPass works
+- flakiness heuristic is implemented and documented
+
+TM-08:
+- every completed UI scenario has a scenario log + final screenshot
+- every completed API scenario has a scenario log + request/response evidence
+- failure evidence is richer
+- evidence belongs to exact ScenarioResult
+- historical evidence remains immutable across later runs
+- evidence metadata persists in SQLite
+- binaries/text artifacts live under test-management/artifacts/
+- evidence can be opened from React
+- safe content retrieval prevents arbitrary filesystem access
+- old failed-run evidence remains inspectable
+
+Verification:
+- history tests pass
+- evidence tests pass
+- all existing backend tests pass
+- dotnet build passes
+- dotnet test passes
+- npm run build passes
+- real UI evidence verified
+- real API evidence verified
+- old-run evidence retention verified
+- visible real Regression/Recovery demonstration is documented
+- existing Parts 1–4 remain unaffected
+
+After verification:
+
+Update PART5_PLAN.md:
+
+- Step 6 -> DONE
+- TM-04 -> DONE
+- TM-08 -> DONE
+- Current Step -> Awaiting review
+
+STOP.
+
+Do not begin Step 7.
 
 ---
 
@@ -3466,7 +4574,8 @@ Verify:
 
 # 10. Current Step
 
-CURRENT STEP: Awaiting review / Step 5 (Real-Time Execution / TM-03) is
-DONE and verified — see the Step 5 section above. Steps 1–4 remain DONE.
+CURRENT STEP: Awaiting review / Step 6 (Test History & Evidence / TM-04 +
+TM-08) is DONE and verified — see the Step 6 section above. Steps 1–5
+remain DONE.
 
-Do not implement Step 6 or later without review.
+Do not implement Step 7 or later without review.

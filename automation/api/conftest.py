@@ -5,6 +5,8 @@ import time
 import pytest
 import requests
 
+import evidence_capture
+
 # Part 5 (Step 4 / TM-02) injects the target via OFFENDERWATCH_BASE_URL so
 # the orchestrator can run this suite against any configured Environment's
 # BaseUrlSnapshot. No hard-coded fallback: if it's missing, fail loudly at
@@ -35,8 +37,18 @@ def base_url():
 def session():
     s = requests.Session()
     s.headers.update({"Content-Type": "application/json"})
+    # Part 5 (Step 6 / TM-08) — a response hook is the one centralized place
+    # that observes every request this suite makes, without any individual
+    # test needing to change (6.16). evidence_capture.begin_scenario(), called
+    # per test below, keeps captures scoped to the scenario that produced them.
+    s.hooks["response"].append(evidence_capture.record)
     yield s
     s.close()
+
+
+@pytest.hookimpl
+def pytest_runtest_setup(item):
+    evidence_capture.begin_scenario(item.nodeid)
 
 
 @pytest.fixture

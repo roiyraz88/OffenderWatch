@@ -25,4 +25,11 @@ public class RunnerOptions
     public string PlaywrightExecutableRelativePath { get; set; } = "node_modules/.bin/playwright.cmd";
     public string PlaywrightWorkingDirectory { get; set; } = "automation/ui";
     public string PlaywrightArguments { get; set; } = "test";
+
+    /// <summary>
+    /// TM-08 (Step 6) evidence root, relative to test-management/server (its
+    /// ContentRootPath) — resolves to test-management/artifacts/. Each run
+    /// gets its own "run-{runId}" subdirectory under here.
+    /// </summary>
+    public string ArtifactRootRelativeToContentRoot { get; set; } = "../artifacts";
 }

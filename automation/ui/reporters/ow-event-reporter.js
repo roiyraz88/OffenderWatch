@@ -6,7 +6,19 @@
 // orchestrator parses (never human-readable Playwright console output).
 // Added alongside the existing list/html/json reporters in
 // playwright.config.js; it doesn't replace or change them.
+const fs = require('fs');
 const path = require('path');
+
+// Part 5 (Step 6 / TM-08) — where the orchestrator told us to write this
+// run's evidence. Optional: unset when this suite is run by hand outside
+// the platform, in which case evidence capture is simply skipped (6.14).
+const ARTIFACT_DIR = process.env.OFFENDERWATCH_ARTIFACT_DIR;
+
+function sanitize(externalId) {
+  // A safe, deterministic folder name for one scenario's evidence — never
+  // the raw spec path/title verbatim into a filesystem path (6.14).
+  return externalId.replace(/[^A-Za-z0-9_.-]+/g, '_').replace(/^_+|_+$/g, '');
+}
 
 function extractMeta(test) {
   const specPath = path
@@ -82,6 +94,70 @@ class OwEventReporter {
       failureMessage,
       stackTrace,
     });
+
+    this.writeEvidence(meta.externalId, test, result, status, failureMessage, stackTrace);
+  }
+
+  emitArtifact(externalId, artifactType, absolutePath, contentType) {
+    // Path is reported relative to OFFENDERWATCH_ARTIFACT_DIR — the
+    // orchestrator resolves and validates it against that same
+    // run-specific directory before trusting it (6.13).
+    const relativePath = path.relative(ARTIFACT_DIR, absolutePath).replace(/\\/g, '/');
+    this.emit({
+      eventType: 'artifact_created',
+      externalId,
+      artifactType,
+      path: relativePath,
+      contentType,
+    });
+  }
+
+  writeEvidence(externalId, test, result, status, failureMessage, stackTrace) {
+    if (!ARTIFACT_DIR) return; // standalone run outside the platform (6.14) — nothing to write
+
+    const scenarioDir = path.join(ARTIFACT_DIR, sanitize(externalId));
+    fs.mkdirSync(scenarioDir, { recursive: true });
+
+    // 6.17 — one execution log per scenario, never a shared/mutable file.
+    const stdout = (result.stdout || []).map((c) => c.toString()).join('');
+    const stderr = (result.stderr || []).map((c) => c.toString()).join('');
+    const steps = (result.steps || [])
+      .map((s) => `  - ${s.title} (${s.duration}ms)${s.error ? ' [FAILED]' : ''}`)
+      .join('\n');
+
+    const logLines = [
+      `test: ${test.title}`,
+      `location: ${test.location.file}:${test.location.line}`,
+      `status: ${status}`,
+      `durationMs: ${result.duration}`,
+    ];
+    if (steps) logLines.push('', '--- steps ---', steps);
+    if (stdout) logLines.push('', '--- stdout ---', stdout);
+    if (stderr) logLines.push('', '--- stderr ---', stderr);
+    if (failureMessage) logLines.push('', `failureMessage: ${failureMessage}`);
+    if (stackTrace) logLines.push('', '--- stack trace ---', stackTrace);
+
+    const logPath = path.join(scenarioDir, 'execution.log');
+    fs.writeFileSync(logPath, logLines.join('\n'), 'utf-8');
+    this.emitArtifact(externalId, 'Log', logPath, 'text/plain');
+
+    // 6.11/6.15 — a final screenshot for every scenario (screenshot:'on' in
+    // playwright.config.js), plus a trace for failures where one was
+    // produced (trace:'retain-on-failure'). Both come from Playwright's own
+    // test-result attachments — no test file needed to change.
+    for (const attachment of result.attachments || []) {
+      if (!attachment.path || !fs.existsSync(attachment.path)) continue;
+
+      if (attachment.name === 'screenshot') {
+        const dest = path.join(scenarioDir, 'final.png');
+        fs.copyFileSync(attachment.path, dest);
+        this.emitArtifact(externalId, 'Screenshot', dest, attachment.contentType || 'image/png');
+      } else if (attachment.name === 'trace') {
+        const dest = path.join(scenarioDir, 'trace.zip');
+        fs.copyFileSync(attachment.path, dest);
+        this.emitArtifact(externalId, 'Trace', dest, 'application/zip');
+      }
+    }
   }
 
   onEnd(_result) {

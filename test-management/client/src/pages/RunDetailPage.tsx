@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { getRun, stopRun } from "../api/runs";
 import { useRunLiveUpdates } from "../hooks/useRunLiveUpdates";
+import { EvidencePanel } from "../components/EvidencePanel";
 import type { RunDetail, RunSummary, ScenarioResult } from "../types/run";
 
 function formatDuration(seconds: number | null): string {
@@ -37,6 +38,7 @@ export function RunDetailPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
   const [stopError, setStopError] = useState<string | null>(null);
+  const [evidenceFor, setEvidenceFor] = useState<ScenarioResult | null>(null);
 
   // Guards against a REST response that started before a newer SignalR
   // event arrived from clobbering it — always keep the freshest state.
@@ -174,6 +176,7 @@ export function RunDetailPage() {
               <th>Bug</th>
               <th>Status</th>
               <th>Duration</th>
+              <th>Evidence</th>
             </tr>
           </thead>
           <tbody>
@@ -188,16 +191,32 @@ export function RunDetailPage() {
                     <span className={`status-badge status-${sr.status.toLowerCase()}`}>{sr.status}</span>
                   </td>
                   <td>{sr.durationMs !== null ? `${sr.durationMs}ms` : "—"}</td>
+                  <td>
+                    {sr.status !== "Queued" && sr.status !== "Running" && (
+                      <button className="link-button" onClick={() => setEvidenceFor(sr)}>
+                        Evidence
+                      </button>
+                    )}
+                  </td>
                 </tr>
                 {(sr.status === "Failed" || sr.status === "ExpectedFail") && sr.failureMessage && (
                   <tr className="failure-row">
-                    <td colSpan={6}>{sr.failureMessage}</td>
+                    <td colSpan={7}>{sr.failureMessage}</td>
                   </tr>
                 )}
               </Fragment>
             ))}
           </tbody>
         </table>
+      )}
+
+      {evidenceFor && (
+        <EvidencePanel
+          runId={run.id}
+          scenarioResultId={evidenceFor.id}
+          scenarioName={evidenceFor.name}
+          onClose={() => setEvidenceFor(null)}
+        />
       )}
     </section>
   );

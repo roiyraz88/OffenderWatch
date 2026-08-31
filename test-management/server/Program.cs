@@ -70,6 +70,9 @@ builder.Services.AddScoped<IRunService, RunService>();
 builder.Services.AddScoped<RunOrchestrator>();
 builder.Services.AddHostedService<RunExecutionBackgroundService>();
 
+// TM-04 (Step 6, Part A) — derived, read-only; no execution-side state.
+builder.Services.AddScoped<ITestHistoryService, TestHistoryService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -95,6 +98,8 @@ app.UseExceptionHandler(errorApp =>
             EnvironmentConflictException ex => (StatusCodes.Status409Conflict, "Conflict", ex.Message),
             RunNotFoundException ex => (StatusCodes.Status404NotFound, "Not found", ex.Message),
             RunConflictException ex => (StatusCodes.Status409Conflict, "Conflict", ex.Message),
+            ScenarioResultNotFoundException ex => (StatusCodes.Status404NotFound, "Not found", ex.Message),
+            TestCaseNotFoundException ex => (StatusCodes.Status404NotFound, "Not found", ex.Message),
             _ => (StatusCodes.Status500InternalServerError, "Unexpected error", "An unexpected error occurred."),
         };
 

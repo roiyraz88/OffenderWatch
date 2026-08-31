@@ -71,6 +71,11 @@ public class RunOrchestrator
         await _db.SaveChangesAsync(CancellationToken.None);
         await BroadcastRunUpdatedAsync(run);
 
+        // TM-08 (6.14) — the run's own artifact root, created once up front
+        // so both suite phases can write evidence into it via
+        // OFFENDERWATCH_ARTIFACT_DIR.
+        Directory.CreateDirectory(RunArtifactRoot);
+
         var baseUrl = run.BaseUrlSnapshot;
 
         // 4.14 — sequential, intentional: pytest first, then Playwright.
@@ -249,12 +254,23 @@ public class RunOrchestrator
         // record (4.15) — the child process only ever sees what was frozen
         // onto this TestRun at creation time.
         psi.EnvironmentVariables["OFFENDERWATCH_BASE_URL"] = baseUrl;
+        // TM-08 (6.14) — where this run's evidence must be written. The
+        // runner writes only beneath this directory; the orchestrator
+        // rejects anything else at ingestion time (HandleArtifactCreatedAsync).
+        psi.EnvironmentVariables["OFFENDERWATCH_ARTIFACT_DIR"] = RunArtifactRoot;
 
         return psi;
     }
 
     private static string ToPath(string configuredRelativePath) =>
         configuredRelativePath.Replace('/', Path.DirectorySeparatorChar);
+
+    /// <summary>TM-08 (6.9) — test-management/artifacts/, resolved the same way every other configured path is (never a hard-coded absolute path).</summary>
+    private string ArtifactRoot => Path.GetFullPath(
+        Path.Combine(_hostEnvironment.ContentRootPath, _options.ArtifactRootRelativeToContentRoot));
+
+    /// <summary>TM-08 (6.14) — this run's own artifact subdirectory, e.g. artifacts/run-123/.</summary>
+    private string RunArtifactRoot => Path.Combine(ArtifactRoot, $"run-{_runId}");
 
     private void TryKillProcessTree(Process process, RunnerKind kind)
     {
@@ -285,6 +301,9 @@ public class RunOrchestrator
                 break;
             case "scenario_finished":
                 await HandleFinishedAsync(evt);
+                break;
+            case "artifact_created":
+                await HandleArtifactCreatedAsync(evt);
                 break;
             // "suite_finished" carries no per-scenario state to persist;
             // the caller already recorded that it was observed.
@@ -404,6 +423,77 @@ public class RunOrchestrator
         await _db.SaveChangesAsync(CancellationToken.None);
         await BroadcastScenarioUpdatedAsync(result);
     }
+
+    /// <summary>
+    /// TM-08 (6.13/6.14) — registers evidence a runner already wrote to
+    /// disk. Never trusts the reported path blindly: it must resolve
+    /// (after combining with this run's own artifact root) to a real file
+    /// strictly inside that root, or the event is logged and dropped —
+    /// exactly the same "ignore what can't be trusted" discipline
+    /// <see cref="OwEventParser"/> already applies to malformed JSON.
+    /// </summary>
+    private async Task HandleArtifactCreatedAsync(OwEvent evt)
+    {
+        if (evt.ExternalId is null || evt.Path is null || evt.ArtifactType is null)
+        {
+            return;
+        }
+
+        if (!Enum.TryParse<EvidenceType>(evt.ArtifactType, ignoreCase: true, out var type))
+        {
+            _logger.LogWarning("Run {RunId}: artifact_created had an unrecognized artifactType '{ArtifactType}' from {ExternalId}", _runId, evt.ArtifactType, evt.ExternalId);
+            return;
+        }
+
+        var scenarioResult = await FindScenarioResultAsync(evt.ExternalId);
+        if (scenarioResult is null)
+        {
+            _logger.LogWarning("Run {RunId}: artifact_created referenced an unknown scenario {ExternalId}", _runId, evt.ExternalId);
+            return;
+        }
+
+        var runRoot = Path.GetFullPath(RunArtifactRoot);
+        var candidate = Path.GetFullPath(Path.Combine(runRoot, ToPath(evt.Path)));
+        var isInsideRunRoot = candidate.StartsWith(runRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+        if (!isInsideRunRoot)
+        {
+            _logger.LogWarning("Run {RunId}: rejected artifact path outside this run's artifact directory: '{Path}'", _runId, evt.Path);
+            return;
+        }
+        if (!File.Exists(candidate))
+        {
+            _logger.LogWarning("Run {RunId}: artifact_created referenced a file that does not exist: '{Path}'", _runId, evt.Path);
+            return;
+        }
+
+        var relativeToArtifactRoot = Path.GetRelativePath(ArtifactRoot, candidate).Replace(Path.DirectorySeparatorChar, '/');
+        var sizeBytes = new FileInfo(candidate).Length;
+
+        // 6.10 — a fresh row every time, never an update of an existing one:
+        // historical evidence for an already-finalized ScenarioResult (a
+        // different run's row for the same TestCase) is never touched here,
+        // since this always targets *this* run's own ScenarioResult.
+        _db.EvidenceArtifacts.Add(new EvidenceArtifact
+        {
+            ScenarioResultId = scenarioResult.Id,
+            Type = type,
+            RelativePath = relativeToArtifactRoot,
+            ContentType = string.IsNullOrWhiteSpace(evt.ContentType) ? GuessContentType(candidate) : evt.ContentType,
+            SizeBytes = sizeBytes,
+            CreatedAtUtc = DateTime.UtcNow,
+        });
+        await _db.SaveChangesAsync(CancellationToken.None);
+    }
+
+    private static string GuessContentType(string filePath) => Path.GetExtension(filePath).ToLowerInvariant() switch
+    {
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".json" => "application/json",
+        ".zip" => "application/zip",
+        ".log" or ".txt" => "text/plain",
+        _ => "application/octet-stream",
+    };
 
     private Task<ScenarioResult?> FindScenarioResultAsync(string? externalId)
     {

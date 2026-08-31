@@ -42,4 +42,11 @@ public class RunController : ControllerBase
         await _runs.StopAsync(id, ct);
         return NoContent();
     }
+
+    /// <summary>TM-08 (6.18) — evidence metadata for one ScenarioResult of this Run.</summary>
+    [HttpGet("{runId:int}/scenarios/{scenarioResultId:int}/evidence")]
+    public async Task<ActionResult<IReadOnlyList<EvidenceArtifactDto>>> GetScenarioEvidence(int runId, int scenarioResultId, CancellationToken ct)
+    {
+        return Ok(await _runs.GetScenarioEvidenceAsync(runId, scenarioResultId, ct));
+    }
 }

@@ -31,6 +31,13 @@ public class OwEvent
 
     // suite_finished
     public int? TotalScenarios { get; set; }
+
+    // artifact_created (Step 6 / 6.13) — never a binary payload, only
+    // metadata + a path the orchestrator validates against the run's own
+    // artifact directory before trusting it.
+    public string? ArtifactType { get; set; }
+    public string? Path { get; set; }
+    public string? ContentType { get; set; }
 }
 
 public static class OwEventParser

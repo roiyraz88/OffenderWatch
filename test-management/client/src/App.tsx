@@ -4,6 +4,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { RunsPage } from "./pages/RunsPage";
 import { RunDetailPage } from "./pages/RunDetailPage";
 import { TestsPage } from "./pages/TestsPage";
+import { TestDetailPage } from "./pages/TestDetailPage";
 import { EnvironmentsPage } from "./pages/EnvironmentsPage";
 import { TestDataPage } from "./pages/TestDataPage";
 
@@ -38,6 +39,7 @@ function App() {
           <Route path="/runs" element={<RunsPage />} />
           <Route path="/runs/:id" element={<RunDetailPage />} />
           <Route path="/tests" element={<TestsPage />} />
+          <Route path="/tests/:id" element={<TestDetailPage />} />
           <Route path="/environments" element={<EnvironmentsPage />} />
           <Route path="/test-data" element={<TestDataPage />} />
         </Routes>

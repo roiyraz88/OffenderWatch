@@ -19,6 +19,14 @@ list/HTML/JSON reporter output below is unchanged, the `OW_EVENT|` lines
 just interleave with it. See `test-management/README.md` for how the
 platform uses it.
 
+When the platform also sets `OFFENDERWATCH_ARTIFACT_DIR` (Part 5 / Step 6),
+both suites additionally write an execution log — and a screenshot (UI) or
+request/response JSON (API) — per scenario into that directory, and emit
+one more `OW_EVENT|` line (`artifact_created`) per file. This is optional:
+unset, both suites behave exactly as they did before Step 6, evidence
+capture is simply skipped. See `test-management/README.md`'s Evidence
+section for the full protocol.
+
 Every automated scenario traces back to a PRD requirement ID (FR-xx /
 API-xx) and, where it documents a known defect, to a Bug ID from
 `OffenderWatch_Tests.xlsx` (sheet **Bug Reports**). **A red test here is not
@@ -61,8 +69,13 @@ for every failure).
 - `playwright.config.js` — `baseURL` comes from `OFFENDERWATCH_BASE_URL`
   (no fallback); one worker, no retries (a red result should mean "defect
   confirmed," not "retry until green" — retrying would hide that signal).
+  `screenshot: 'on'` (Step 6, was `'only-on-failure'`) so every scenario —
+  passing or failing — gets a final screenshot; `trace: 'retain-on-failure'`
+  unchanged.
 - `reporters/ow-event-reporter.js` — Part 5 integration reporter, added
   alongside the list/HTML/JSON reporters; prints `OW_EVENT|{json}` lines.
+  Also writes each scenario's execution log, screenshot, and (for failures)
+  trace as evidence when `OFFENDERWATCH_ARTIFACT_DIR` is set (Step 6).
 
 ### Scenarios (11 across 8 files)
 
@@ -104,10 +117,17 @@ pytest -v --junitxml=results/api-results.xml   # machine-readable, for the dashb
 - `conftest.py` — shared `session`/`base_url` fixtures (`base_url` reads
   `OFFENDERWATCH_BASE_URL`, no fallback) and a `unique_national_id`
   generator (`AUTO<timestamp>`) so created test offenders are easy to find
-  and clean up. Also auto-loads `ow_event_reporter.py`.
+  and clean up. Also auto-loads `ow_event_reporter.py`, and (Step 6) wires
+  `evidence_capture.py` into the shared session's response hook.
 - `ow_event_reporter.py` — Part 5 integration reporter (pytest plugin);
   prints `OW_EVENT|{json}` lines, pure hook implementations, never touches
-  test behavior/assertions.
+  test behavior/assertions. Also writes each scenario's execution log and
+  (Step 6) API request/response evidence when `OFFENDERWATCH_ARTIFACT_DIR`
+  is set.
+- `evidence_capture.py` — Part 5 (Step 6) centralized API request/response
+  capture, shared by `conftest.py` and `ow_event_reporter.py`; redacts
+  sensitive headers (Authorization/Cookie/tokens) before anything is
+  written. No test file references it.
 - `test_api01_paging_search.py` … `test_api05_stats.py` — one file per
   API-xx requirement.
 - `cleanup_test_data.py` — deletes every offender whose National ID starts
