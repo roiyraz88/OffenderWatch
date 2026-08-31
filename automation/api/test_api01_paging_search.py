@@ -9,10 +9,17 @@ def _pick_live_offender(session, base_url):
     permanently corrupted earlier by BUG-007's app-crashing invalid-signal
     input, so a hardcoded name can silently start failing for reasons
     unrelated to what this test actually checks.
+
+    Skips offenders with an empty/degenerate last name (junk left on the
+    shared demo app, e.g. from manually reproducing BUG-002) — an empty
+    substring would match every offender regardless of casing, turning the
+    case-sensitivity check below into a vacuous pass instead of a real one.
     """
-    items = session.get(f"{base_url}/api/offenders", params={"pageSize": 1}).json()["items"]
-    assert items, "expected at least one offender to exist"
-    return items[0]
+    items = session.get(f"{base_url}/api/offenders", params={"pageSize": 100}).json()["items"]
+    for o in items:
+        if o.get("lastName") and len(o["lastName"]) >= 3 and o["lastName"].isalpha():
+            return o
+    raise AssertionError("no offender with a usable (non-empty, alphabetic) last name found")
 
 
 def test_paging_metadata_is_consistent(session, base_url):
