@@ -1,14 +1,15 @@
 # OffenderWatch — Test Management Platform (Part 5)
 
-Status: **Step 7 — Test Data Lifecycle** (TM-06) done.
+Status: **Step 8 — Dynamic Dashboard** (TM-07) done — this completes every
+TM-01..TM-08 requirement in the official assignment.
 See [`PART5_PLAN.md`](../PART5_PLAN.md) at the repo root for the full
 implementation plan and current step.
 
 TM-01 (Environment configuration), TM-02 (real run execution), TM-03 (live
 SignalR progress), TM-04 (test history), TM-06 (test-data ownership +
-cleanup), and TM-08 (evidence capture/retrieval) are fully working
-end-to-end. The dynamic dashboard (TM-07) is not implemented yet — see
-`PART5_PLAN.md`'s Step 8 section.
+cleanup), TM-07 (dynamic Go/No-Go dashboard), and TM-08 (evidence
+capture/retrieval) are all fully working end-to-end. `PART5_PLAN.md`'s
+Step 9 (final verification & submission dataset) is what remains.
 
 ## Structure
 
@@ -538,6 +539,93 @@ nothing left in the Test Data page to demonstrate tracking or cleaning
 through the platform). TM-06 is the real, tracked, auditable, run-scoped
 mechanism; the legacy script stays only as a manual "tidy the shared demo
 app" utility, unrelated to Part 5.
+
+## Dynamic Dashboard (TM-07 / Step 8)
+
+`GET /api/dashboard` (`Services/DashboardService.cs`) is the one
+purpose-built, backend-derived release overview — the React client never
+downloads raw Runs/ScenarioResults and recomputes the picture itself.
+Everything below is aggregation over already-correct, already-tested data;
+nothing here is a second implementation of a rule that already exists
+elsewhere on the platform.
+
+**Pass-rate formula** (used everywhere on the Dashboard, no exceptions):
+
+```
+Passed / (Passed + Failed + ExpectedFail) * 100
+```
+
+Skipped and Cancelled are excluded from the denominator. If the
+denominator is zero, pass rate is `null` — never reported as 100%. The
+three inputs are the exact same `PassedCount`/`FailedCount`/
+`ExpectedFailedCount` totals `RunOrchestrator.FinalizeAsync` already
+persists on every `TestRun` (Step 4) — Cancelled scenarios are already
+excluded from all three there, so applying this formula to them is not a
+second definition, just this one formula applied to the one existing
+source of truth.
+
+**Latest Run per Environment**: grouped by the immutable
+`EnvironmentNameSnapshot` (never the live `Environment` row, which may
+since have been edited or deleted — Step 3's historical-preservation
+design), one row per group — its most recently *created* Run that reached
+a terminal status (`Completed`/`Stopped`/`Failed`). A still-`Queued`/
+`Running` Run is never picked as "latest" — it isn't a picture of anything
+yet.
+
+**Pass-rate trend**: the latest 20 (documented limit) Runs that produced
+at least one comparable result (`Passed+Failed+ExpectedFail > 0`) —
+excludes a Run that never started and a Stopped/infrastructure-`Failed`
+Run that never got far enough to finish even one scenario; a `Stopped` Run
+that *did* complete real scenarios before being cancelled is still real
+data and is kept. Returned chronological (oldest first).
+
+**Currently failing tests**: reuses `ITestHistoryService`'s own
+`CurrentFailureSinceRunId` output (Step 6) directly — a TestCase is
+"currently failing" exactly when that value is non-null, the identical
+rule the `/tests` page already shows, never a second implementation.
+Skipped/Cancelled results never hide an existing failure and never break a
+CurrentFailureSince streak (Step 6's own rule, unchanged). A recovered
+test (latest comparable result is `Passed`) disappears from this list
+automatically. Failure duration (`GeneratedAtUtc - CurrentFailureSinceUtc`)
+is computed on every read — never persisted, since it changes every second
+it's true.
+
+**Go / No-Go / Incomplete / No Data** — deterministic, based on the single
+most recently *created* Run across the whole platform (not per
+environment — one platform-wide "what does the newest attempt say"
+signal):
+
+| Latest Run's state | Decision |
+|---|---|
+| No Run exists at all | **NoData** |
+| `Queued` / `Running` / `Stopped` | **Incomplete** |
+| `Failed` (infrastructure) | **NoGo** |
+| `Completed`, `FailedCount > 0` | **NoGo** |
+| `Completed`, `FailedCount == 0` | **Go** |
+
+`ExpectedFail` never forces `NoGo` by itself — it represents a known,
+already-classified defect, not a regression — but expected-failure counts
+stay prominently visible everywhere alongside the decision, never folded
+into the unexpected-failure count. A `Stopped` Run is explicitly never
+presented as a successful `Go` — it's `Incomplete`.
+
+**Client**: `pages/DashboardPage.tsx` renders the decision banner, the
+Latest-Run-per-Environment table (links to `/runs/:id`), a lightweight
+dependency-free SVG trend chart (`components/PassRateTrendChart.tsx` — no
+charting library), and the Currently-Failing-Tests table (links to
+`/tests/:id` and to the failure's origin Run) — all from one
+`GET /api/dashboard` call. A manual **Refresh** button reloads it; no
+polling, no SignalR (both intentionally out of scope for TM-07 per the
+plan). Loading/error states match the rest of the app (an error banner
+with Retry replaces the page entirely on API failure — the old placeholder
+is never left visible).
+
+**Part 4 relationship**: `dashboard/dashboard.html` (the static Part 4
+deliverable) is untouched and remains the submitted Part 4 artifact. The
+Part 5 React Dashboard is a separate, independent implementation that
+functionally replaces it *for the new platform only* — it reads live
+SQLite data through the Part 5 API, never the Part 4 dashboard's own
+data/calculations.
 
 ## Regression/Recovery demonstration (6.27)
 

@@ -125,6 +125,8 @@ public class TestHistoryService : ITestHistoryService
             LastStatus = last?.Item1.Status.ToString(),
             LastRunId = last?.Item2.Id,
             LastExecutedAtUtc = last?.Item1.EndedAtUtc ?? last?.Item2.CreatedAtUtc,
+            LastEnvironmentNameSnapshot = last?.Item2.EnvironmentNameSnapshot,
+            LastFailureMessage = last?.Item1.FailureMessage,
 
             IsFlaky = HistoryClassifier.ComputeIsFlaky(statuses),
 

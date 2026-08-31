@@ -197,6 +197,123 @@ table.env-table tr.run-row:hover {
   background: #c33;
 }
 
+/* TM-07 (Step 8) — release decision banner */
+
+.decision-banner {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  margin: 1rem 0 1.75rem;
+  border: 1px solid transparent;
+}
+
+.decision-label {
+  font-size: 1.6rem;
+  font-weight: 800;
+  padding: 0.4rem 1rem;
+  border-radius: 8px;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.decision-go {
+  background: rgba(42, 170, 119, 0.12);
+  border-color: rgba(42, 170, 119, 0.35);
+}
+.decision-go .decision-label {
+  background: #2a7;
+}
+
+.decision-nogo {
+  background: rgba(204, 51, 51, 0.1);
+  border-color: rgba(204, 51, 51, 0.35);
+}
+.decision-nogo .decision-label {
+  background: #c33;
+}
+
+.decision-incomplete {
+  background: rgba(184, 134, 11, 0.1);
+  border-color: rgba(184, 134, 11, 0.35);
+}
+.decision-incomplete .decision-label {
+  background: #b8860b;
+}
+
+.decision-nodata {
+  background: rgba(127, 127, 127, 0.1);
+  border-color: rgba(127, 127, 127, 0.3);
+}
+.decision-nodata .decision-label {
+  background: #777;
+}
+
+.decision-details p {
+  margin: 0 0 0.5rem;
+  color: var(--text-secondary, #555);
+}
+
+.decision-stats {
+  display: grid;
+  grid-template-columns: repeat(5, max-content);
+  gap: 0.15rem 1.5rem;
+  margin: 0;
+}
+
+.decision-stats dt {
+  grid-row: 1;
+  font-weight: 600;
+  color: #888;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.decision-stats dd {
+  grid-row: 2;
+  margin: 0;
+  font-weight: 600;
+}
+
+/* TM-07 trend chart */
+
+.trend-chart-wrap {
+  max-width: 700px;
+  margin: 0.5rem 0 1.5rem;
+}
+
+.trend-chart {
+  width: 100%;
+  height: auto;
+}
+
+.trend-empty {
+  color: #888;
+}
+
+.trend-gridline {
+  stroke: rgba(127, 127, 127, 0.2);
+  stroke-width: 1;
+}
+
+.trend-axis-label {
+  font-size: 9px;
+  fill: #888;
+}
+
+.trend-line {
+  stroke: #2670c9;
+  stroke-width: 2;
+}
+
+.trend-point {
+  fill: #2670c9;
+  stroke: #fff;
+  stroke-width: 1;
+}
+
 dl.run-meta {
   display: grid;
   grid-template-columns: max-content 1fr;

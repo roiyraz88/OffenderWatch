@@ -73,6 +73,10 @@ builder.Services.AddHostedService<RunExecutionBackgroundService>();
 // TM-04 (Step 6, Part A) — derived, read-only; no execution-side state.
 builder.Services.AddScoped<ITestHistoryService, TestHistoryService>();
 
+// TM-07 (Step 8) — derived release overview; reuses ITestHistoryService's
+// own CurrentFailureSince output rather than re-deriving it.
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+
 // TM-06 (Step 7) — cleanup calls the real target OffenderWatch API through
 // a plain HttpClient from the standard factory; no fixed BaseAddress here
 // since the target varies per TestRun (its own BaseUrlSnapshot).

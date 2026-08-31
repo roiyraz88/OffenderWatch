@@ -14,6 +14,12 @@ public class TestCaseSummaryDto
     public int? LastRunId { get; set; }
     public DateTime? LastExecutedAtUtc { get; set; }
 
+    /// <summary>The owning Run's environment snapshot for the latest execution (Step 8 / TM-07 reuses this — never a second "latest environment" lookup).</summary>
+    public string? LastEnvironmentNameSnapshot { get; set; }
+
+    /// <summary>Set when the latest execution's own status was Failed/ExpectedFail (Step 8 / TM-07's "currently failing" list reuses this).</summary>
+    public string? LastFailureMessage { get; set; }
+
     public bool IsFlaky { get; set; }
     public int? CurrentFailureSinceRunId { get; set; }
     public DateTime? CurrentFailureSinceUtc { get; set; }

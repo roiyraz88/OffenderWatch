@@ -164,7 +164,7 @@ test-management/
 | TM-04       | Test history               | DONE    |
 | TM-05       | Persistence                | Planned |
 | TM-06       | Test data lifecycle        | DONE    |
-| TM-07       | Summary dashboard          | Planned |
+| TM-07       | Summary dashboard          | DONE    |
 | TM-08       | Evidence capture           | DONE    |
 
 Status must only be changed when the requirement actually works.
@@ -5536,20 +5536,764 @@ STOP.
 
 Do not begin Step 8.
 
-## Step 8 — Dynamic Dashboard
+## Step 8 — Dynamic Dashboard (TM-07)
 
-Implement TM-07.
+**STATUS: DONE (2026-09-01). TM-07 -> DONE.**
 
-Dashboard must derive its information from stored run history.
+Implemented 8.1–8.21 with no duplicate of any Step 4/6 algorithm — Run-level
+pass rate reuses `TestRun`'s own persisted `PassedCount`/`FailedCount`/
+`ExpectedFailedCount` totals (Step 4's `FinalizeAsync`) directly, and
+"currently failing" reuses `ITestHistoryService`'s own
+`CurrentFailureSinceRunId`/`CurrentFailureSinceUtc` output (Step 6)
+directly — no second Regression/Recovery/CurrentFailureSince/"comparable
+result" implementation exists anywhere. First confirmed Steps 1–7 were
+intact (`dotnet build`, `dotnet test` = 87/87, `npm run build`, all clean
+before starting).
 
-It will include:
+### Files added/changed
 
-- latest run per environment
-- pass-rate trend
+**test-management/server/:**
+- `DTOs/TestDtos.cs` — `TestCaseSummaryDto` gained two additive fields,
+  `LastEnvironmentNameSnapshot`/`LastFailureMessage`, populated in
+  `TestHistoryService.BuildSummary` from data it already loads. This is
+  what let the Dashboard's "currently failing" list get a test's latest
+  Environment/FailureMessage *without* a second query or a second
+  chronological walk — `/api/tests` gets the same two fields as an
+  incidental improvement, not a Dashboard-specific side channel.
+- `DTOs/DashboardDtos.cs` (new) — `DashboardDto`,
+  `DashboardEnvironmentRunDto`, `DashboardTrendPointDto`,
+  `DashboardCurrentlyFailingTestDto`; no EF entity or raw Run/ScenarioResult
+  dump ever leaves the API.
+- `Services/IDashboardService.cs`/`DashboardService.cs` (new) — the one
+  aggregation layer (8.1):
+  - `PassRate(passed, failed, expectedFailed)` — the single private helper
+    implementing 8.4's formula, called from every place a pass rate is
+    shown (env rows, trend points, the top summary).
+  - `BuildLatestRunsByEnvironment` — groups all Runs by
+    `EnvironmentNameSnapshot`, keeps only those with a terminal Status
+    (`Completed`/`Stopped`/`Failed`), picks the newest-created per group
+    (8.3).
+  - `BuildTrend` — the latest 20 Runs (any Environment) with at least one
+    comparable result, returned oldest-first (8.5).
+  - `BuildCurrentlyFailing` — calls `ITestHistoryService.GetAllAsync()`
+    and filters to `CurrentFailureSinceRunId.HasValue` — that condition
+    *is* Step 6's own "currently failing" definition, not a re-derivation
+    of it (8.6); computes `FailureDurationSeconds` on read, never
+    persisted (8.7).
+  - `ComputeDecision` — the Go/NoGo/Incomplete/NoData rule (8.9), judged
+    against the single most-recently-*created* Run across the whole
+    platform (documented as a deliberate design decision below).
+- `Controllers/DashboardController.cs` (new) — `GET /api/dashboard`, thin.
+- `Program.cs` — registered `IDashboardService`.
+
+**test-management/client/:**
+- `types/dashboard.ts`, `api/dashboard.ts` (new) — typed layer, same
+  pattern as every earlier step.
+- `components/PassRateTrendChart.tsx` (new) — a dependency-free SVG line
+  chart (8.12): gridlines at 0/25/50/75/100%, a polyline connecting real
+  pass-rate points, per-point `<title>` tooltips (Run id, Environment,
+  exact rate, Passed/Failed/ExpectedFail), x-axis date labels, and clean
+  handling of 0/1/many points. No charting library added.
+- `pages/DashboardPage.tsx` (replaces the Step-1 placeholder) — the
+  decision banner (color-coded per state) with the 8.10 summary stats,
+  the Latest-Run-per-Environment table (rows link to `/runs/:id`), the
+  trend chart, and the Currently-Failing-Tests table (rows link to
+  `/tests/:id`, failing-since links to `/runs/:id`) — one `GET
+  /api/dashboard` call, no client-side recomputation of anything.
+- `index.css` — `.decision-banner` + its four state variants, `.decision-stats`,
+  `.trend-*` chart styles.
+
+**test-management/server.Tests/ (20 new tests, 107 total with Steps 3–7's 87):**
+`DashboardServiceTests.cs` — latest-Run-per-Environment selection
+(including ignoring a still-`Running` newer row, and preserving a
+historical snapshot for a since-deleted Environment with no `Environment`
+row seeded at all); pass rate with `ExpectedFail` in the denominator only
+(the exact `7/33=21.2%` worked example from the plan); `Skipped`/`Cancelled`
+excluded; zero-denominator → `null`, never `100%`; trend chronological
+ordering; trend excludes a never-run `Queued` row and an infra-`Failed`
+row with nothing comparable; currently-failing uses the latest comparable
+result; `Skipped`/`Cancelled` don't hide an existing failure; a recovered
+test disappears; `CurrentFailureSince` reuse + duration computation;
+`ExpectedFail` distinct from `Failed` in the currently-failing payload;
+`Go`/`NoGo` (unexpected failure)/`NoGo` (infrastructure `Failed`)/
+`Incomplete` (`Stopped`, explicitly asserting it's *not* `Go`)/`NoData`;
+and the overall decision correctly uses the single most recent Run across
+environments (an older failing Dev run + a newer passing Staging run →
+`Go`, matching the newer one).
+
+### Design decisions / deviations
+
+- **The overall Go/No-Go decision is platform-wide, not per-Environment.**
+  8.9 discusses "the latest relevant Run" in the singular without fully
+  disambiguating multi-Environment aggregation. Chosen and documented
+  interpretation: the single most recently *created* Run across the whole
+  platform, regardless of which Environment it targeted — the simplest,
+  most defensible "what does the newest attempt say" release signal, and
+  the one explicitly tested (`Decision_UsesOnlyTheSingleMostRecentRun_AcrossAllEnvironments`).
+  Latest-Run-*per-Environment* (8.3) remains fully per-Environment, as
+  specified — this deviation is scoped only to the single top-level
+  decision.
+- **`Incomplete` also covers `Queued`/`Running`, not only `Stopped`.** 8.9's
+  prose explicitly discusses `Stopped`; a still-in-progress Run is, if
+  anything, even less final than a Stopped one — extending `Incomplete` to
+  cover it was judged the only sensible reading, and keeps the decision
+  from ever showing a false `Go`/`NoGo` for a Run that hasn't finished.
+- **`TestCaseSummaryDto` gained two fields** (`LastEnvironmentNameSnapshot`/
+  `LastFailureMessage`) rather than a second, Dashboard-only query — both
+  come from data `TestHistoryService` already loads per TestCase; this
+  keeps `BuildCurrentlyFailing` a pure reuse of `GetAllAsync()`'s existing
+  output instead of a parallel computation.
+
+### Verified
+
+**Backend:**
+- `dotnet build` (server) — 0 warnings, 0 errors.
+- `dotnet test` (`server.Tests`) — **107/107 passed** (87 from Steps 3–7 +
+  20 new).
+
+**Real end-to-end verification (8.19), through the Part 5 system, real
+persisted data (no fake Runs):**
+1. Fresh migrated SQLite DB. Real Environment ("Roie") created through the
+   platform's own API. Two real, complete Runs executed back to back.
+2. Pulled `GET /api/dashboard` directly and hand-verified the math: `7 /
+   (7+0+26) = 21.2%` (exactly the plan's own worked example), decision
+   `Go` (latest Run, `Run #2`, `FailedCount=0`), `latestRunsByEnvironment`
+   correctly showing exactly one row — Roie — pointing at `Run #2` (the
+   *newer* of the two, not `Run #1`), a 2-point chronological trend
+   (`Run #1` then `Run #2`, both `21.2%` — deterministic defects, exactly
+   as Steps 4-7's own repeated real runs already established), and
+   `currentlyFailingTestCount = 26` (matching `ExpectedFailedCount`
+   exactly, since every one of this baseline's known defects is still
+   classified `ExpectedFail` on both runs).
+3. **In a real Chromium browser** (Playwright driving it — throwaway
+   verification scripts, deleted after): opened `/`, cross-checked every
+   displayed number against the raw API JSON pulled in step 2 — decision
+   banner (`Go`), summary stats (`Run #2` / `21.2%` / `0` unexpected / `26`
+   expected / `26` currently failing), the environment row (`Roie #2
+   Completed 49.4s 21.2% 7 0 26 0` — byte-for-byte what the API returned),
+   2 rendered trend points, 26 currently-failing rows all showing the
+   `ExpectedFail` badge (matching `unexpected=0` exactly).
+4. Clicked a Run link from the environment table → landed on `/runs/2`,
+   correct heading. Clicked a Test link from the currently-failing table →
+   landed on `/tests/23`, correct heading (`FR-01 / TC-001C, TC-001D ...
+   [BUG-001]`).
+5. Stopped the backend entirely and reloaded `/` live: the error banner
+   ("Could not reach the API.") with a **Retry** button replaced the whole
+   page — confirmed directly (`page.locator('main').innerHTML()`) that the
+   old placeholder text was gone, not left visible underneath. Restarted
+   the backend and confirmed **Refresh** re-fetches and re-renders the
+   real decision banner successfully.
+6. `Failed` vs `ExpectedFail` visual distinction: confirmed by CSS class
+   assignment (`.status-failed` red `#c33` vs `.status-expectedfail`
+   purple `#a05fd6`, unchanged since Step 4/6) rather than by forcing a
+   live unexpected-`Failed` scenario into this run — every currently
+   known defect in the real app carries a `BugId` and is therefore always
+   `ExpectedFail`, not `Failed` (the same honest finding already
+   documented in Step 6's Regression/Recovery section); the class mapping
+   itself is exercised identically regardless of which specific status a
+   row happens to have.
+7. Housekeeping: `cleanup_test_data.py` found **0** leftover AUTO-prefixed
+   offenders — both real runs' own self-cleanup worked as established in
+   every earlier step.
+
+**Frontend:**
+- `npm run build` (`tsc -b && vite build`) — clean.
+
+**Part 4 preserved (8.20)**: `git diff --stat` against `dashboard/`,
+`OffenderWatch_Assignment.xlsx`, and every `automation/ui/tests`/
+`automation/api/test_api*.py` file shows **zero changes** — every change
+this step made is confined to `test-management/`.
+
+Not implemented (correctly, per the 8.22 scope boundary): the final
+submission dataset, fake/artificial recorded Runs, scheduled Runs,
+scheduled cleanup, notifications, authentication, bonus features, any
+Part 4 modification.
+
+Housekeeping: the verification `test-management/data/testmanagement.db`
+and `test-management/artifacts/` were deleted after this step's checks
+(same reasoning as Steps 2–7).
+
+STOP after Step 8. Awaiting review before Step 9 (Verification & Submission).
+
+---
+
+### Step 8 spec (as implemented, kept verbatim below for reference)
+
+Status: READY FOR IMPLEMENTATION
+
+### Goal
+
+Implement the Part 5 dynamic Go / No-Go dashboard.
+
+The dashboard must be based entirely on persisted Part 5 data in SQLite.
+
+It must provide an immediately understandable quality picture using:
+
+1. Latest Run per Environment
+2. Pass-rate trend
+3. Currently failing tests and how long they have been failing
+
+Do not modify or replace the preserved Part 4 static dashboard files.
+
+The new dashboard belongs to:
+
+test-management/client
+
+and uses the Part 5 ASP.NET Core API.
+
+---
+
+### 8.1 Dashboard Architecture
+
+Use a dedicated backend dashboard query/service.
+
+Suggested flow:
+
+SQLite
+  |
+  | TestRuns / ScenarioResults / TestCases
+  v
+DashboardService
+  |
+  v
+GET /api/dashboard
+  |
+  v
+React Dashboard
+
+Do not make the React client download all Runs and calculate the dashboard
+itself.
+
+Aggregation and history interpretation belong in the backend.
+
+Reuse existing history classification logic from Step 6 where appropriate.
+
+Do not duplicate Regression / Recovery / CurrentFailureSince algorithms.
+
+---
+
+### 8.2 Dashboard API
+
+Implement:
+
+GET /api/dashboard
+
+Return a purpose-built Dashboard DTO.
+
+Suggested shape:
+
+{
+  "generatedAtUtc": "...",
+  "overallDecision": "Go|NoGo|NoData",
+  "latestRunsByEnvironment": [],
+  "passRateTrend": [],
+  "currentlyFailingTests": []
+}
+
+Exact DTO structure may differ if justified.
+
+Do not expose EF entities directly.
+
+---
+
+### 8.3 Latest Run Per Environment
+
+Return the latest relevant Run for each Environment represented in historical
+Run data.
+
+Historical Environment snapshots must continue to appear even if the current
+Environment row was edited or deleted.
+
+Group by the immutable environment identity/snapshot in a way that preserves
+historical correctness.
+
+For each environment show at least:
+
+- Environment name
+- BaseUrl snapshot where useful
+- RunId
+- Run status
+- StartedAtUtc
+- EndedAtUtc
+- Duration
+- PassedCount
+- FailedCount
+- ExpectedFailedCount
+- SkippedCount
+- total scenario count
+- pass rate
+
+Use the most recent completed/stopped/failed run according to the documented
+dashboard rule.
+
+Do not silently replace historical snapshots with the current Environment URL.
+
+---
+
+### 8.4 Pass Rate Definition
+
+Document one consistent pass-rate formula.
+
+Use:
+
+Passed / Executed Comparable Scenarios * 100
+
+Where comparable final outcomes are:
+
+- Passed
+- Failed
+- ExpectedFail
+
+Exclude:
+
+- Skipped
+- Cancelled
+
+ExpectedFail remains distinguishable from unexpected Failed, but it is not a
+passing result.
+
+If denominator = 0:
+
+pass rate = null
+
+Do not report 100%.
+
+Use the same formula everywhere on the Dashboard.
+
+---
+
+### 8.5 Pass-Rate Trend
+
+Return chronological trend points from persisted Runs.
+
+At minimum include:
+
+- RunId
+- Environment name snapshot
+- timestamp
+- pass rate
+- Passed
+- Failed
+- ExpectedFail
+- total comparable scenarios
+
+Prefer recent Runs while preserving enough points to show a meaningful trend.
+
+A simple documented limit such as the latest 20 completed runs is sufficient.
+
+Do not invent trend data.
+
+Stopped or infrastructure-Failed Runs that do not contain a meaningful
+comparable result set may be excluded from the trend.
+
+Document the rule.
+
+---
+
+### 8.6 Currently Failing Tests
+
+Derive currently failing tests from TestCase history.
+
+A test is currently failing when its latest comparable result is:
+
+- Failed
+- ExpectedFail
+
+Ignore Skipped and Cancelled when determining the latest comparable state.
+
+For every currently failing test return at least:
+
+- TestCaseId
+- ExternalId
+- Name
+- Suite
+- RequirementId
+- BugId
+- current status
+- latest RunId
+- latest Environment
+- CurrentFailureSinceUtc
+- CurrentFailureSinceRunId
+- failure duration
+- latest FailureMessage where available
+
+Reuse Step 6 CurrentFailureSince behavior.
+
+Do not create a second definition of "currently failing".
+
+---
+
+### 8.7 Failure Duration
+
+For currently failing tests calculate:
+
+GeneratedAtUtc - CurrentFailureSinceUtc
+
+Return either:
+
+- a machine-readable duration value
+
+or enough timestamps for the React client to format it.
+
+Do not persist continuously-changing duration values in SQLite.
+
+Examples in UI:
+
+- 18 minutes
+- 2 hours
+- 3 days
+
+The exact display format can be simple.
+
+---
+
+### 8.8 Expected Failures
+
+ExpectedFail must remain visually distinguishable from unexpected Failed.
+
+Do not combine:
+
+26 ExpectedFail + 1 Failed
+
+into:
+
+27 Failed
+
+The dashboard should make the difference obvious.
+
+This distinction is important for release interpretation.
+
+---
+
+### 8.9 Go / No-Go Decision
+
+Provide a simple, deterministic release decision.
+
+Recommended rule:
+
+NoData:
+- no meaningful completed Run exists
+
+NoGo:
+- the latest relevant Run contains one or more unexpected Failed scenarios
+- OR the latest relevant Run ended with infrastructure status Failed
+
+Go:
+- latest relevant Run completed without unexpected Failed scenarios
+
+ExpectedFail does NOT by itself force NoGo because it represents a known,
+already-classified defect.
+
+However, ExpectedFail counts must remain clearly visible.
+
+Stopped Runs must not be presented as a successful Go signal.
+
+If the latest Run is Stopped, show an explicit incomplete/attention state in
+the UI rather than pretending it is a successful release result.
+
+If needed, extend the decision enum to:
+
+- Go
+- NoGo
+- Incomplete
+- NoData
+
+Document the final rule.
+
+Keep the rule simple enough to explain in an interview.
+
+---
+
+### 8.10 Dashboard Summary
+
+At the top of the React Dashboard show a compact quality summary.
+
+At minimum:
+
+- Go / No-Go / Incomplete / No Data
+- latest meaningful run
+- pass rate
+- unexpected failures
+- expected failures
 - currently failing tests
-- failing-since information
-- Go / No-Go information
 
+The user should be able to understand the release state without reading the
+entire page.
+
+---
+
+### 8.11 Latest Runs Section
+
+Display one card/row per Environment.
+
+Show:
+
+- Environment
+- Run
+- Status
+- Date/time
+- Duration
+- pass rate
+- Passed
+- Failed
+- ExpectedFail
+- Skipped
+
+Allow navigation to:
+
+/runs/:id
+
+Do not hard-code environment names.
+
+---
+
+### 8.12 Trend Visualization
+
+Add a simple pass-rate trend visualization.
+
+A lightweight chart is sufficient.
+
+Do not add a large charting dependency unless necessary.
+
+A simple SVG/CSS implementation is acceptable.
+
+If an existing suitable dependency is already installed, it may be used.
+
+Show enough information to understand:
+
+- chronological order
+- Run
+- Environment
+- pass rate
+
+The chart must be driven by real API data.
+
+Handle:
+
+- no data
+- one run
+- multiple runs
+
+cleanly.
+
+---
+
+### 8.13 Currently Failing Tests Section
+
+Display currently failing tests.
+
+Show:
+
+- Test
+- Suite
+- Requirement
+- Bug
+- status
+- Environment
+- failing since
+- failure duration
+
+Use visually different badges for:
+
+- Failed
+- ExpectedFail
+
+Allow navigation to:
+
+/tests/:id
+
+and where useful:
+
+/runs/:id
+
+---
+
+### 8.14 Regression / Recovery Context
+
+Where practical, surface useful history context from Step 6.
+
+For example:
+
+- Regression
+- Still Failing
+- Known Expected Failure
+
+Do not rebuild the entire Test Details timeline on the Dashboard.
+
+The Dashboard is a release overview, not a second History page.
+
+---
+
+### 8.15 Dashboard Refresh
+
+The dashboard must load from the real backend API.
+
+A normal Refresh action is sufficient.
+
+Do not add polling merely for Step 8.
+
+SignalR dashboard updates are optional and NOT required for TM-07.
+
+Do not expand Step 5 unless there is a compelling simple reuse.
+
+---
+
+### 8.16 Empty States
+
+Handle cleanly:
+
+- no Runs
+- no currently failing tests
+- no trend data
+- Environment with no meaningful completed Run
+
+Do not show misleading zeroes where the correct meaning is "No data".
+
+---
+
+### 8.17 Loading and Error States
+
+React Dashboard must provide:
+
+- loading state
+- API failure state
+- retry/refresh ability
+
+Do not leave the existing placeholder content visible when the API fails.
+
+---
+
+### 8.18 Backend Tests
+
+Add deterministic tests for at least:
+
+- latest Run selected correctly per Environment
+- historical Environment snapshot preserved
+- pass-rate formula
+- ExpectedFail included in denominator but not numerator
+- Skipped excluded from denominator
+- Cancelled excluded from denominator
+- denominator zero -> null pass rate
+- trend ordered chronologically
+- trend uses real persisted Runs
+- currently failing uses latest comparable result
+- Skipped/Cancelled do not hide a current failure
+- recovered test is not currently failing
+- CurrentFailureSince reused correctly
+- ExpectedFail distinguishable from Failed
+- Go decision with zero unexpected failures
+- NoGo decision with unexpected failure
+- NoGo decision for infrastructure failure
+- Stopped Run does not produce false Go
+- NoData works
+
+Do not depend on the real target application for deterministic backend tests.
+
+---
+
+### 8.19 React Verification
+
+Verify in a real browser using persisted platform data:
+
+- Dashboard loads
+- summary is correct
+- latest Run per Environment is correct
+- pass-rate calculation matches Run data
+- trend renders
+- currently failing tests render
+- Failed vs ExpectedFail distinction is visible
+- links to Run Details work
+- links to Test Details work
+- Refresh works
+- empty/error states do not break the page
+
+---
+
+### 8.20 Preserve Part 4
+
+Do NOT modify:
+
+dashboard/dashboard.html
+
+or other preserved Part 4 deliverables.
+
+The Part 5 React Dashboard replaces Part 4 only functionally for the new
+platform.
+
+Part 4 must remain available for submission/review.
+
+---
+
+### 8.21 Documentation
+
+Update README with:
+
+- Dashboard purpose
+- API endpoint
+- pass-rate formula
+- trend inclusion rule
+- currently-failing definition
+- ExpectedFail treatment
+- Go / No-Go / Incomplete / NoData rule
+- relationship between Part 4 static dashboard and Part 5 dynamic dashboard
+
+Keep the release decision rule concise and interview-friendly.
+
+---
+
+### 8.22 Scope Boundary
+
+Step 8 DOES NOT implement:
+
+- final submission dataset
+- artificial/fake recorded Runs
+- scheduled Runs
+- scheduled cleanup
+- notifications
+- authentication
+- bonus features
+- Part 4 modifications
+
+Do not begin Step 9.
+
+---
+
+### Step 8 Definition of Done
+
+Step 8 is DONE only when:
+
+- GET /api/dashboard works
+- dashboard data is derived from SQLite
+- latest Run per Environment is shown
+- historical Environment snapshots are respected
+- pass-rate formula is consistent and documented
+- pass-rate trend works
+- currently failing tests are derived correctly
+- CurrentFailureSince is reused
+- Failed and ExpectedFail remain distinguishable
+- Go / No-Go / Incomplete / NoData decision is deterministic
+- React Dashboard uses real API data
+- navigation to Runs/Tests works
+- loading/error/empty states work
+- backend dashboard tests pass
+- all existing backend tests pass
+- dotnet build passes
+- dotnet test passes
+- npm run build passes
+- real browser verification passes
+- Part 4 dashboard remains untouched
+
+After verification:
+
+Update PART5_PLAN.md:
+
+- Step 8 -> DONE
+- TM-07 -> DONE
+- Current Step -> Awaiting review
+
+STOP.
+
+Do not begin Step 9.
 ---
 
 ## Step 9 — Verification & Submission
@@ -5588,7 +6332,8 @@ Verify:
 
 # 10. Current Step
 
-CURRENT STEP: Awaiting review / Step 7 (Test Data Lifecycle / TM-06) is
-DONE and verified — see the Step 7 section above. Steps 1–6 remain DONE.
+CURRENT STEP: Awaiting review / Step 8 (Dynamic Dashboard / TM-07) is DONE
+and verified — see the Step 8 section above. Steps 1–7 remain DONE. Every
+TM-01..TM-08 requirement in the official assignment is now implemented.
 
-Do not implement Step 8 or later without review.
+Do not implement Step 9 without review.
