@@ -13,7 +13,13 @@ test('FR-02 / TC-002C — search returns same results regardless of letter casin
   request,
   baseURL,
 }) => {
-  const lastName = `CaseTest${Date.now() % 100000}`;
+  // All-lowercase on purpose: neither .toLowerCase() nor .toUpperCase() of a
+  // *mixed*-case name would exactly match its stored casing under a
+  // case-sensitive backend, so BOTH searches would spuriously return empty
+  // and the sanity check below would fail for the wrong reason. Starting
+  // from all-lowercase guarantees the lowercase search is an exact-case
+  // match no matter how the app matches casing.
+  const lastName = `casetest${Date.now() % 100000}`;
   const created = await (
     await request.post(`${baseURL}/api/offenders`, {
       data: {
@@ -28,19 +34,19 @@ test('FR-02 / TC-002C — search returns same results regardless of letter casin
   ).json();
 
   try {
-    const substring = lastName.slice(0, 8); // "CaseTest"
+    const substring = lastName.slice(0, 8); // "casetest" — matches the stored casing exactly
     const list = new OffenderListPage(page);
     await list.goto();
 
-    await list.search(substring.toLowerCase());
-    const lowerResults = await list.lastNamesOnPage();
+    await list.search(substring); // exact-case match — must find it regardless of any bug
+    const exactCaseResults = await list.lastNamesOnPage();
+    expect(exactCaseResults, 'sanity check: the created offender must be findable at all').toContain(lastName);
 
     await list.search(substring.toUpperCase());
     const upperResults = await list.lastNamesOnPage();
 
-    expect(upperResults, 'sanity check: the created offender must be findable at all').toContain(lastName);
-    expect(lowerResults, 'lowercase search should return the same offender as the uppercase search').toEqual(
-      upperResults,
+    expect(upperResults, 'an uppercase search should return the same offender as the exact-case search').toEqual(
+      exactCaseResults,
     );
   } finally {
     await request.delete(`${baseURL}/api/offenders/${created.id}`);
