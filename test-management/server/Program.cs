@@ -1,3 +1,7 @@
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using OffenderWatch.TestManagement.Server.Data;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -28,6 +32,28 @@ builder.Services.AddCors(options =>
             .AllowCredentials(); // required for SignalR
     });
 });
+
+// SQLite — the connection string's *pattern* comes from configuration
+// (appsettings.json's ConnectionStrings:Default), never hard-coded here.
+// What IS resolved here is the relative DataSource path in that pattern,
+// against the project's own ContentRootPath rather than the process's
+// current working directory — `dotnet run` from test-management/server and
+// `dotnet ef` invoked from the same folder both land on the same absolute
+// file either way, regardless of the shell that launched them.
+var configuredConnectionString = builder.Configuration.GetConnectionString("Default")
+    ?? "Data Source=../data/testmanagement.db";
+
+var sqliteBuilder = new SqliteConnectionStringBuilder(configuredConnectionString);
+if (!Path.IsPathRooted(sqliteBuilder.DataSource))
+{
+    sqliteBuilder.DataSource = Path.GetFullPath(
+        Path.Combine(builder.Environment.ContentRootPath, sqliteBuilder.DataSource));
+}
+Directory.CreateDirectory(Path.GetDirectoryName(sqliteBuilder.DataSource)!);
+var connectionString = sqliteBuilder.ToString();
+
+builder.Services.AddDbContext<TestManagementDbContext>(options =>
+    options.UseSqlite(connectionString));
 
 var app = builder.Build();
 
