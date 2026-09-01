@@ -1,0 +1,37 @@
+test: FR-09 / TC-009A-D — Latest reading matches the most recent trail point [BUG-006]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr09-latest-reading.spec.js:16
+status: failed
+durationMs: 3154
+
+--- steps ---
+  - Before Hooks (279ms)
+  - POST "/AQApplication/Roie/api/offenders" (334ms)
+  - POST "/AQApplication/Roie/api/offenders/754/locations" (84ms)
+  - POST "/AQApplication/Roie/api/offenders/754/locations" (88ms)
+  - POST "/AQApplication/Roie/api/offenders/754/locations" (217ms)
+  - Navigate to "" (724ms)
+  - Wait for selector locator('table.grid') (49ms)
+  - Wait for selector locator('.pager span').filter({ hasText: /\([1-9]\d* results\)/ }) (43ms)
+  - Fill "Latest43342" locator('input.search') (28ms)
+  - Wait for timeout (415ms)
+  - Click locator('table.grid tbody tr').filter({ hasText: 'Latest43342' }).first() (69ms)
+  - Wait for selector locator('.trail-view') (19ms)
+  - Wait for selector locator('.trail-table-header') (13ms)
+  - Wait for timeout (507ms)
+  - Query count locator('.trail-view').locator('table.trail-grid tbody tr') (8ms)
+  - Expect "toBe" (0ms)
+  - Latest reading speed should equal the newest trail point speed (3ms) [FAILED]
+  - DELETE "/AQApplication/Roie/api/offenders/754" (83ms)
+  - After Hooks (222ms)
+  - Worker Cleanup (53ms)
+
+failureMessage: Error: Latest reading speed should equal the newest trail point speed
+
+--- stack trace ---
+Error: Latest reading speed should equal the newest trail point speed
+
+[2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+Expected: [32m"[7m3[27m0"[39m
+Received: [31m"[7m1[27m0"[39m
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr09-latest-reading.spec.js:58:91

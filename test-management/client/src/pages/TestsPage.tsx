@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { getTests } from "../api/tests";
+import { LoadingSpinner } from "../components/LoadingSpinner";
+import { PageLoading } from "../components/PageLoading";
 import type { TestCaseSummary } from "../types/test";
 
 function formatTime(iso: string | null): string {
@@ -13,13 +15,17 @@ export function TestsPage() {
   const navigate = useNavigate();
   const [tests, setTests] = useState<TestCaseSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   async function load() {
+    setLoading(true);
     setError(null);
     try {
       setTests(await getTests());
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not reach the API.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -36,11 +42,20 @@ export function TestsPage() {
       {error && (
         <div className="error-banner">
           <p>{error}</p>
-          <button onClick={load}>Retry</button>
+          <button onClick={load} disabled={loading}>
+            {loading ? (
+              <>
+                <LoadingSpinner size="sm" announce={false} />
+                Retrying…
+              </>
+            ) : (
+              "Retry"
+            )}
+          </button>
         </div>
       )}
 
-      {!error && tests === null && <p>Loading tests…</p>}
+      {!error && tests === null && <PageLoading label="Loading tests…" />}
       {!error && tests !== null && tests.length === 0 && <p>No tests recorded yet — run the suite from the Runs page first.</p>}
 
       {!error && tests !== null && tests.length > 0 && (

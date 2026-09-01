@@ -113,6 +113,27 @@ public class TestHistoryService : ITestHistoryService
         var currentFailureSinceIndex = HistoryClassifier.ComputeCurrentFailureSinceIndex(statuses);
         var lastPassIndex = HistoryClassifier.ComputeLastPassIndex(statuses);
 
+        // Flakiness is environment-aware: a Pass on Environment A followed by
+        // a Fail on Environment B is not a real alternation observed by
+        // anyone testing either environment on its own (e.g. the Step 6/9
+        // controlled-Environment Regression/Recovery demonstration must
+        // never make the real target's own consistent history look flaky).
+        // Only Regression/Recovery/StillFailing/CurrentFailureSince stay
+        // cross-environment/unchanged — those already read correctly as "the
+        // test's real chronological story across whatever it was run
+        // against"; flakiness specifically is scoped to the environment of
+        // the test's most recent execution, using the same window/threshold
+        // rule (HistoryClassifier.ComputeIsFlaky) applied only to that
+        // environment's own comparable results, in their existing
+        // chronological order.
+        var latestEnvironment = last?.Item2.EnvironmentNameSnapshot;
+        var statusesForFlakiness = latestEnvironment is null
+            ? statuses
+            : chronological
+                .Where(c => c.Run.EnvironmentNameSnapshot == latestEnvironment)
+                .Select(c => c.Result.Status)
+                .ToList();
+
         return new TestCaseSummaryDto
         {
             Id = testCase.Id,
@@ -128,7 +149,7 @@ public class TestHistoryService : ITestHistoryService
             LastEnvironmentNameSnapshot = last?.Item2.EnvironmentNameSnapshot,
             LastFailureMessage = last?.Item1.FailureMessage,
 
-            IsFlaky = HistoryClassifier.ComputeIsFlaky(statuses),
+            IsFlaky = HistoryClassifier.ComputeIsFlaky(statusesForFlakiness),
 
             CurrentFailureSinceRunId = currentFailureSinceIndex.HasValue ? chronological[currentFailureSinceIndex.Value].Item2.Id : null,
             CurrentFailureSinceUtc = currentFailureSinceIndex.HasValue

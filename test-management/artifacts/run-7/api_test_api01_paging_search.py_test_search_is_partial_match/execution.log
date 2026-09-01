@@ -1,0 +1,3 @@
+nodeid: test_api01_paging_search.py::test_search_is_partial_match
+status: passed
+durationMs: 133

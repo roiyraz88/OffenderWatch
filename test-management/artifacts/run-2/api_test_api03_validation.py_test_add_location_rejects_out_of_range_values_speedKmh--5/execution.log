@@ -1,0 +1,45 @@
+nodeid: test_api03_validation.py::test_add_location_rejects_out_of_range_values[speedKmh--5]
+status: failed
+durationMs: 77
+
+failureMessage: test_api03_validation.py:147: AssertionError
+
+--- stack trace ---
+session = <requests.sessions.Session object at 0x000001C81EB14B50>
+base_url = 'https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie'
+field = 'speedKmh', value = -5, disposable_offender = 703
+
+    @pytest.mark.known_bug
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("signal", 6),
+            ("signal", 0),
+            ("batteryPct", 101),
+            ("batteryPct", -1),
+            ("speedKmh", -5),
+            ("lat", 200),
+            ("lon", -200),
+        ],
+    )
+    def test_add_location_rejects_out_of_range_values(session, base_url, field, value, disposable_offender):
+        """Known defect: BUG-009 — location validation is not enforced (confirmed at API layer)."""
+        payload = {
+            "timestamp": "2026-01-01T00:00:00Z",
+            "lat": 32.0,
+            "lon": 34.0,
+            "speedKmh": 10,
+            "batteryPct": 50,
+            "signal": 3,
+        }
+        payload[field] = value
+    
+        resp = session.post(f"{base_url}/api/offenders/{disposable_offender}/locations", json=payload)
+>       assert resp.status_code == 400, (
+            f"expected 400 for {field}={value}, got {resp.status_code}: {resp.text[:200]}"
+        )
+E       AssertionError: expected 400 for speedKmh=-5, got 201: {"ok":true}
+E       assert 201 == 400
+E        +  where 201 = <Response [201]>.status_code
+
+test_api03_validation.py:147: AssertionError

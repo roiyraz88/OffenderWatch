@@ -1,0 +1,32 @@
+nodeid: test_api03_validation.py::test_add_location_rejects_out_of_range_values[batteryPct--1]
+status: failed
+durationMs: 4
+
+failureMessage: test_api03_validation.py:33: KeyError
+
+--- stack trace ---
+session = <requests.sessions.Session object at 0x000002144725B2D0>
+base_url = 'http://127.0.0.1:8792', unique_national_id = 'AUTO1788213776946'
+
+    @pytest.fixture
+    def disposable_offender(session, base_url, unique_national_id):
+        """A throwaway offender for tests that must POST a location, so a
+        signal/battery/coordinate value outside the valid range never pollutes a
+        shared seeded offender (this is exactly what corrupted seed offender
+        id=1 "Cohen" earlier — see BUG-007's evidence in the bug report).
+        """
+        created = session.post(
+            f"{base_url}/api/offenders",
+            json={
+                "firstName": "Disposable",
+                "lastName": f"Loc{unique_national_id}",
+                "nationalId": unique_national_id,
+                "dateOfBirth": "1990-01-01",
+                "riskLevel": "Low",
+                "status": "Active",
+            },
+        ).json()
+>       yield created["id"]
+E       KeyError: 'id'
+
+test_api03_validation.py:33: KeyError

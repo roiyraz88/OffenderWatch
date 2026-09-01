@@ -48,3 +48,11 @@ public class TestDataValidationException : Exception
     {
     }
 }
+
+/// <summary>An invalid B-02 run-comparison request, e.g. the same run on both sides. Maps to 400.</summary>
+public class RunComparisonValidationException : Exception
+{
+    public RunComparisonValidationException(string message) : base(message)
+    {
+    }
+}

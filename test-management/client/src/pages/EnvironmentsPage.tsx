@@ -8,6 +8,9 @@ import {
 } from "../api/environments";
 import { ApiError } from "../api/client";
 import { EnvironmentFormModal, type EnvironmentFormValues } from "../components/EnvironmentFormModal";
+import { ConfirmDeleteModal } from "../components/ConfirmDeleteModal";
+import { LoadingSpinner } from "../components/LoadingSpinner";
+import { PageLoading } from "../components/PageLoading";
 import type { Environment } from "../types/environment";
 
 type LoadState = "loading" | "loaded" | "error";
@@ -24,7 +27,11 @@ export function EnvironmentsPage() {
   const [formError, setFormError] = useState<string | undefined>(undefined);
 
   const [actionError, setActionError] = useState<string | null>(null);
-  const [pendingActionId, setPendingActionId] = useState<number | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ id: number; kind: "setDefault" } | null>(null);
+
+  const [deleteTarget, setDeleteTarget] = useState<Environment | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function load() {
     setLoadState("loading");
@@ -73,34 +80,54 @@ export function EnvironmentsPage() {
     }
   }
 
-  async function handleDelete(env: Environment) {
-    if (!window.confirm(`Delete environment '${env.name}'?`)) {
-      return;
+  function openDeleteConfirm(env: Environment) {
+    setDeleteTarget(env);
+    setDeleteError(null);
+  }
+
+  function closeDeleteConfirm() {
+    if (deleting) return; // guarded by the modal's own disabled buttons/Escape too — belt and suspenders
+    setDeleteTarget(null);
+    setDeleteError(null);
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteTarget || deleting) {
+      return; // also guards against a duplicate request firing twice
     }
-    setActionError(null);
-    setPendingActionId(env.id);
+    setDeleting(true);
+    setDeleteError(null);
     try {
-      await deleteEnvironment(env.id);
+      await deleteEnvironment(deleteTarget.id);
+      setDeleteTarget(null);
       await load();
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Delete failed — the API is unreachable.");
+      setDeleteError(err instanceof ApiError ? err.message : "Delete failed — the API is unreachable.");
     } finally {
-      setPendingActionId(null);
+      setDeleting(false);
     }
   }
 
   async function handleSetDefault(env: Environment) {
     setActionError(null);
-    setPendingActionId(env.id);
+    setPendingAction({ id: env.id, kind: "setDefault" });
     try {
       await setDefaultEnvironment(env.id);
       await load();
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Could not set default — the API is unreachable.");
     } finally {
-      setPendingActionId(null);
+      setPendingAction(null);
     }
   }
+
+  // A full-page spinner only makes sense while there's nothing to preserve
+  // underneath it — the true initial load, or a retry after a failure that
+  // never had any data. A background reload after create/edit/delete/
+  // set-default (loadState briefly "loading" again with environments already
+  // populated) must leave the table exactly where it is.
+  const isLoadingNow = loadState === "loading";
+  const showFullPageSpinner = isLoadingNow && environments.length === 0;
 
   return (
     <section>
@@ -109,22 +136,31 @@ export function EnvironmentsPage() {
         <button onClick={openCreate}>Add environment</button>
       </div>
 
-      {loadState === "loading" && <p>Loading environments…</p>}
+      {showFullPageSpinner && <PageLoading label="Loading environments…" />}
 
       {loadState === "error" && (
         <div className="error-banner">
           <p>{loadError}</p>
-          <button onClick={load}>Retry</button>
+          <button onClick={load} disabled={isLoadingNow}>
+            {isLoadingNow ? (
+              <>
+                <LoadingSpinner size="sm" announce={false} />
+                Retrying…
+              </>
+            ) : (
+              "Retry"
+            )}
+          </button>
         </div>
       )}
 
       {actionError && <div className="error-banner">{actionError}</div>}
 
-      {loadState === "loaded" && environments.length === 0 && (
+      {!showFullPageSpinner && loadState !== "error" && environments.length === 0 && (
         <p>No environments yet. Add one to start recording runs against it.</p>
       )}
 
-      {loadState === "loaded" && environments.length > 0 && (
+      {!showFullPageSpinner && loadState !== "error" && environments.length > 0 && (
         <table className="env-table">
           <thead>
             <tr>
@@ -141,15 +177,22 @@ export function EnvironmentsPage() {
                 <td className="mono">{env.baseUrl}</td>
                 <td>{env.isDefault ? <span className="default-badge">Default</span> : null}</td>
                 <td className="actions">
-                  <button onClick={() => openEdit(env)} disabled={pendingActionId === env.id}>
+                  <button onClick={() => openEdit(env)} disabled={pendingAction?.id === env.id}>
                     Edit
                   </button>
-                  <button onClick={() => handleDelete(env)} disabled={pendingActionId === env.id}>
+                  <button onClick={() => openDeleteConfirm(env)} disabled={pendingAction?.id === env.id}>
                     Delete
                   </button>
                   {!env.isDefault && (
-                    <button onClick={() => handleSetDefault(env)} disabled={pendingActionId === env.id}>
-                      Set default
+                    <button onClick={() => handleSetDefault(env)} disabled={pendingAction?.id === env.id}>
+                      {pendingAction?.id === env.id && pendingAction.kind === "setDefault" ? (
+                        <>
+                          <LoadingSpinner size="sm" announce={false} />
+                          Setting…
+                        </>
+                      ) : (
+                        "Set default"
+                      )}
                     </button>
                   )}
                 </td>
@@ -166,6 +209,18 @@ export function EnvironmentsPage() {
           errorMessage={formError}
           onSubmit={handleFormSubmit}
           onCancel={() => setModalOpen(false)}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmDeleteModal
+          title="Delete environment?"
+          message={`Are you sure you want to delete "${deleteTarget.name}"?`}
+          warning="Historical runs will not be deleted."
+          isDeleting={deleting}
+          errorMessage={deleteError}
+          onConfirm={handleConfirmDelete}
+          onCancel={closeDeleteConfirm}
         />
       )}
     </section>

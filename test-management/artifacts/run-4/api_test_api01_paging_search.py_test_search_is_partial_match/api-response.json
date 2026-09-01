@@ -1,0 +1,10 @@
+{
+  "statusCode": 200,
+  "headers": {
+    "Server": "BaseHTTP/0.6 Python/3.11.9",
+    "Date": "Mon, 31 Aug 2026 22:02:56 GMT",
+    "Content-Type": "application/json",
+    "Content-Length": "70"
+  },
+  "body": "{\"items\": [], \"total\": 0, \"page\": 1, \"pageSize\": 100, \"totalPages\": 0}"
+}

@@ -1,0 +1,13 @@
+{
+  "method": "POST",
+  "url": "http://127.0.0.1:8792/api/offenders",
+  "headers": {
+    "User-Agent": "python-requests/2.32.3",
+    "Accept-Encoding": "gzip, deflate, zstd",
+    "Accept": "*/*",
+    "Connection": "keep-alive",
+    "Content-Type": "application/json",
+    "Content-Length": "167"
+  },
+  "body": "{\"firstName\": \"Disposable\", \"lastName\": \"LocAUTO1788213776889\", \"nationalId\": \"AUTO1788213776889\", \"dateOfBirth\": \"1990-01-01\", \"riskLevel\": \"Low\", \"status\": \"Active\"}"
+}

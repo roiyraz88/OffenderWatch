@@ -1,0 +1,58 @@
+nodeid: test_api05_stats.py::test_stats_trail_point_total_decreases_after_offender_deletion
+status: failed
+durationMs: 537
+
+failureMessage: test_api05_stats.py:64: AssertionError
+
+--- stack trace ---
+session = <requests.sessions.Session object at 0x0000025293D5A810>
+base_url = 'https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie'
+unique_national_id = 'AUTO1788253427862'
+
+    def test_stats_trail_point_total_decreases_after_offender_deletion(session, base_url, unique_national_id):
+        """FR-11 / FR-05 — deleting an offender must remove its trail data, and the
+        global trail-point total must decrease accordingly.
+        Known defect: BUG-015 — total does not decrease after deletion.
+        """
+        created = session.post(
+            f"{base_url}/api/offenders",
+            json={
+                "firstName": "Stats",
+                "lastName": "Cascade",
+                "nationalId": unique_national_id,
+                "dateOfBirth": "1990-01-01",
+                "riskLevel": "Low",
+                "status": "Active",
+            },
+        ).json()
+        offender_id = created["id"]
+    
+        added_points = 3
+        for i in range(added_points):
+            session.post(
+                f"{base_url}/api/offenders/{offender_id}/locations",
+                json={
+                    "timestamp": f"2026-01-0{i + 1}T00:00:00Z",
+                    "lat": 32.0 + i * 0.001,
+                    "lon": 34.0 + i * 0.001,
+                    "speedKmh": 10,
+                    "batteryPct": 50,
+                    "signal": 3,
+                },
+            )
+    
+        before = session.get(f"{base_url}/api/stats").json()["totalLocationPoints"]
+    
+        del_resp = session.delete(f"{base_url}/api/offenders/{offender_id}")
+        assert del_resp.status_code == 204
+    
+        after = session.get(f"{base_url}/api/stats").json()["totalLocationPoints"]
+    
+>       assert after == before - added_points, (
+            f"expected totalLocationPoints to drop by {added_points} after deleting the offender "
+            f"and its trail (before={before}, after={after})"
+        )
+E       AssertionError: expected totalLocationPoints to drop by 3 after deleting the offender and its trail (before=648, after=648)
+E       assert 648 == (648 - 3)
+
+test_api05_stats.py:64: AssertionError

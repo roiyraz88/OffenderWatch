@@ -521,6 +521,37 @@ public class RunOrchestrator
             return;
         }
 
+        // Idempotency guard (Step 8 investigation): the SAME creation event
+        // (identical target-app entity) must never be persisted twice, even
+        // if a line were somehow observed/processed more than once. Scoped
+        // to entity type + the *target application's own* id
+        // (EntityExternalId) — the one truly stable identity a created
+        // entity carries. Deliberately NOT scoped to Identifier (the
+        // human-readable AUTO nationalId): two genuinely different real
+        // entities can legitimately share an Identifier (e.g. BUG-014 — the
+        // target app accepts a duplicate National ID, so a
+        // "reject-duplicate" scenario can legitimately create two distinct
+        // real offenders sharing one nationalId; collapsing on Identifier
+        // would silently drop tracking of one of them, leaving it
+        // un-cleanable). LocationPoint carries no EntityExternalId at all
+        // (7.7 — the target API returns none), so this guard naturally
+        // never applies to it — every LocationPoint POST is a genuinely
+        // distinct trail point and is recorded as its own row, same as
+        // before.
+        if (!string.IsNullOrWhiteSpace(evt.EntityExternalId))
+        {
+            var alreadyTracked = await _db.TestDataRecords.AnyAsync(
+                r => r.TestRunId == _runId && r.EntityType == entityType && r.ExternalId == evt.EntityExternalId,
+                CancellationToken.None);
+            if (alreadyTracked)
+            {
+                _logger.LogInformation(
+                    "Run {RunId}: test_data_created for {EntityType} {ExternalId} is already tracked — duplicate event ignored",
+                    _runId, entityType, evt.EntityExternalId);
+                return;
+            }
+        }
+
         var scenarioResult = await FindScenarioResultAsync(evt.ExternalId);
 
         _db.TestDataRecords.Add(new TestDataRecord

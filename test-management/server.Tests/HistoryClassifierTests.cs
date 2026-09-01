@@ -70,6 +70,23 @@ public class HistoryClassifierTests
     }
 
     [Fact]
+    public void ComputeCurrentFailureSinceIndex_CancelledBetweenFailuresDoesNotBreakStreak()
+    {
+        var statuses = new[] { ScenarioStatus.Failed, ScenarioStatus.Cancelled, ScenarioStatus.Failed };
+        Assert.Equal(0, HistoryClassifier.ComputeCurrentFailureSinceIndex(statuses));
+    }
+
+    [Fact]
+    public void ComputeCurrentFailureSinceIndex_FailedThenPassedThenFailed_UsesTheLatestFailureNotTheOriginal()
+    {
+        // Explicit worked example: Failed -> Passed -> Failed must report the
+        // *latest* Failed (index 2, the re-failure), never the original one
+        // (index 0) that a Recovery in between already cleared.
+        var statuses = new[] { ScenarioStatus.Failed, ScenarioStatus.Passed, ScenarioStatus.Failed };
+        Assert.Equal(2, HistoryClassifier.ComputeCurrentFailureSinceIndex(statuses));
+    }
+
+    [Fact]
     public void ComputeLastPassIndex_ResolvesTheMostRecentPass()
     {
         var statuses = new[] { ScenarioStatus.Passed, ScenarioStatus.Failed, ScenarioStatus.Passed, ScenarioStatus.Failed };

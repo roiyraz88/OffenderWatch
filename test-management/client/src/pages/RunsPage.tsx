@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { getEnvironments } from "../api/environments";
 import { createRun, getRuns } from "../api/runs";
+import { LoadingSpinner } from "../components/LoadingSpinner";
+import { PageLoading } from "../components/PageLoading";
 import type { Environment } from "../types/environment";
 import type { RunSummary } from "../types/run";
 
@@ -56,6 +58,8 @@ export function RunsPage() {
     load();
   }, []);
 
+  const isInitialLoad = loading && runs.length === 0 && environments.length === 0 && !loadError;
+
   async function handleStart() {
     if (selectedEnvironmentId === null) return;
     setStarting(true);
@@ -70,10 +74,15 @@ export function RunsPage() {
     }
   }
 
+  if (isInitialLoad) {
+    return <PageLoading label="Loading runs…" />;
+  }
+
   return (
     <section>
       <div className="page-header">
         <h1>Runs</h1>
+        <Link to="/runs/compare">Compare Runs</Link>
       </div>
 
       <div className="start-run-row">
@@ -83,20 +92,37 @@ export function RunsPage() {
           </span>
         ) : (
           <>
-            <select
-              value={selectedEnvironmentId ?? ""}
-              onChange={(e) => setSelectedEnvironmentId(Number(e.target.value))}
-              disabled={starting}
+            <div className="field">
+              <label className="field-label" htmlFor="start-run-environment">
+                Environment
+              </label>
+              <select
+                id="start-run-environment"
+                value={selectedEnvironmentId ?? ""}
+                onChange={(e) => setSelectedEnvironmentId(Number(e.target.value))}
+                disabled={starting}
+              >
+                {environments.map((env) => (
+                  <option key={env.id} value={env.id}>
+                    {env.name}
+                    {env.isDefault ? " (default)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              className="btn-primary"
+              onClick={handleStart}
+              disabled={starting || selectedEnvironmentId === null}
             >
-              {environments.map((env) => (
-                <option key={env.id} value={env.id}>
-                  {env.name}
-                  {env.isDefault ? " (default)" : ""}
-                </option>
-              ))}
-            </select>
-            <button onClick={handleStart} disabled={starting || selectedEnvironmentId === null}>
-              {starting ? "Starting…" : "Start New Run"}
+              {starting ? (
+                <>
+                  <LoadingSpinner size="sm" announce={false} />
+                  Starting…
+                </>
+              ) : (
+                "Start New Run"
+              )}
             </button>
           </>
         )}
@@ -104,12 +130,19 @@ export function RunsPage() {
 
       {startError && <div className="error-banner">{startError}</div>}
 
-      {loading && <p>Loading runs…</p>}
-
       {loadError && (
         <div className="error-banner">
           <p>{loadError}</p>
-          <button onClick={load}>Retry</button>
+          <button onClick={load} disabled={loading}>
+            {loading ? (
+              <>
+                <LoadingSpinner size="sm" announce={false} />
+                Retrying…
+              </>
+            ) : (
+              "Retry"
+            )}
+          </button>
         </div>
       )}
 
@@ -135,7 +168,11 @@ export function RunsPage() {
           <tbody>
             {runs.map((run) => (
               <tr key={run.id} className="run-row" onClick={() => navigate(`/runs/${run.id}`)}>
-                <td>#{run.id}</td>
+                <td>
+                  <Link to={`/runs/${run.id}`} onClick={(e) => e.stopPropagation()}>
+                    #{run.id}
+                  </Link>
+                </td>
                 <td>{run.environmentNameSnapshot}</td>
                 <td>
                   <span className={`status-badge status-${run.status.toLowerCase()}`}>{run.status}</span>

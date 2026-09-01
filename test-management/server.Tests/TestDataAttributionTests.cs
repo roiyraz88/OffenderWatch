@@ -143,6 +143,67 @@ public class TestDataAttributionTests : TestDatabaseFixture
         Assert.Equal("offenderId=42", record.Identifier);
     }
 
+    // ---- duplicate event idempotency (Step 8) -------------------------
+
+    [Fact]
+    public async Task TestDataCreated_SameEntityExternalIdReportedTwice_OnlyOneRecordPersists()
+    {
+        var run = await SeedRunAsync();
+        await _sut.ApplyEventForTestingAsync(run.Id, RunnerKind.Api, Discovered("api::dup_event_test"));
+
+        // The exact same underlying creation event observed/processed twice
+        // (e.g. a reprocessed or duplicated OW_EVENT line) — same entity
+        // type, same target-app id.
+        await _sut.ApplyEventForTestingAsync(run.Id, RunnerKind.Api,
+            TestDataCreated("api::dup_event_test", "Offender", "900", "AUTO900"));
+        await _sut.ApplyEventForTestingAsync(run.Id, RunnerKind.Api,
+            TestDataCreated("api::dup_event_test", "Offender", "900", "AUTO900"));
+
+        var record = Db.TestDataRecords.Single(r => r.TestRunId == run.Id);
+        Assert.Equal("900", record.ExternalId);
+    }
+
+    [Fact]
+    public async Task TestDataCreated_DifferentRealEntitiesSharingOneIdentifier_BothPersist()
+    {
+        // Reproduces the real BUG-014 case (Run #12 / TC-003D): the target
+        // app does not reject a duplicate National ID, so a
+        // "reject-duplicate" scenario legitimately creates TWO distinct real
+        // offenders (different EntityExternalId) that happen to share the
+        // same Identifier. This must NOT be collapsed by the duplicate-event
+        // guard — both are real target-app entities that need independent
+        // cleanup tracking.
+        var run = await SeedRunAsync();
+        await _sut.ApplyEventForTestingAsync(run.Id, RunnerKind.Api, Discovered("api::bug014_test"));
+
+        await _sut.ApplyEventForTestingAsync(run.Id, RunnerKind.Api,
+            TestDataCreated("api::bug014_test", "Offender", "882", "AUTO1788254679936"));
+        await _sut.ApplyEventForTestingAsync(run.Id, RunnerKind.Api,
+            TestDataCreated("api::bug014_test", "Offender", "883", "AUTO1788254679936"));
+
+        var records = Db.TestDataRecords.Where(r => r.TestRunId == run.Id).OrderBy(r => r.ExternalId).ToList();
+        Assert.Equal(2, records.Count);
+        Assert.Equal(new[] { "882", "883" }, records.Select(r => r.ExternalId));
+        Assert.All(records, r => Assert.Equal("AUTO1788254679936", r.Identifier));
+    }
+
+    [Fact]
+    public async Task TestDataCreated_LocationPoint_RepeatedEventsWithNoExternalId_EachStillRecorded()
+    {
+        // LocationPoint never carries an EntityExternalId (7.7), so the
+        // duplicate-event guard (scoped to ExternalId) never applies to it —
+        // each real POST is a genuinely distinct trail point.
+        var run = await SeedRunAsync();
+        await _sut.ApplyEventForTestingAsync(run.Id, RunnerKind.Api, Discovered("api::location_repeat_test"));
+
+        await _sut.ApplyEventForTestingAsync(run.Id, RunnerKind.Api,
+            TestDataCreated("api::location_repeat_test", "LocationPoint", null, "offenderId=42"));
+        await _sut.ApplyEventForTestingAsync(run.Id, RunnerKind.Api,
+            TestDataCreated("api::location_repeat_test", "LocationPoint", null, "offenderId=42"));
+
+        Assert.Equal(2, Db.TestDataRecords.Count(r => r.TestRunId == run.Id));
+    }
+
     private class StubHostEnvironment : IHostEnvironment
     {
         public string EnvironmentName { get; set; } = "Test";

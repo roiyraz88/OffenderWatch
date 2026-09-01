@@ -1,0 +1,43 @@
+# Bonus B-05 — One-command startup: `docker compose up --build` brings up
+# the whole Part 5 platform (API + client + SQLite persistence) on a clean
+# machine with only Git/Docker/Docker Compose installed.
+#
+# SQLite stays SQLite (no DB container) — both persistent directories are
+# bind-mounted straight to the real, already-committed
+# test-management/data/ and test-management/artifacts/ on the host, so
+# `docker compose up` shows the platform's real historical data (exactly
+# what a clean `git clone` already has on disk), and a plain
+# `docker compose down` never touches them — there is no separate Docker
+# volume to lose data to or to accidentally shadow the real submission
+# database with. Only `docker compose down -v` would remove a volume, and
+# there isn't one; the persistence here is the host filesystem itself.
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: test-management/server/Dockerfile
+    ports:
+      - "5174:8080" # same port local `dotnet run` already uses, for muscle memory; Swagger at /swagger
+    volumes:
+      - ./test-management/data:/repo/test-management/data
+      - ./test-management/artifacts:/repo/test-management/artifacts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  client:
+    build:
+      context: ./test-management/client
+      args:
+        VITE_API_BASE_URL: "" # same-origin: browser talks to nginx, nginx proxies to `server`
+    ports:
+      - "8081:80"
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped

@@ -10,10 +10,12 @@ namespace OffenderWatch.TestManagement.Server.Controllers;
 public class RunController : ControllerBase
 {
     private readonly IRunService _runs;
+    private readonly IRunComparisonService _comparison;
 
-    public RunController(IRunService runs)
+    public RunController(IRunService runs, IRunComparisonService comparison)
     {
         _runs = runs;
+        _comparison = comparison;
     }
 
     /// <summary>Creates and enqueues a run; returns promptly (4.1) — execution happens in the background.</summary>
@@ -34,6 +36,17 @@ public class RunController : ControllerBase
     public async Task<ActionResult<RunDetailDto>> GetById(int id, CancellationToken ct)
     {
         return Ok(await _runs.GetByIdAsync(id, ct));
+    }
+
+    /// <summary>
+    /// Bonus B-02 — Run Comparison. Direction is explicit: Base Run -&gt;
+    /// Compare Run. Entirely read-only (never touches either run/scenario).
+    /// </summary>
+    [HttpGet("compare")]
+    public async Task<ActionResult<RunComparisonDto>> Compare(
+        [FromQuery] int baseRunId, [FromQuery] int compareRunId, CancellationToken ct)
+    {
+        return Ok(await _comparison.CompareAsync(baseRunId, compareRunId, ct));
     }
 
     [HttpPost("{id:int}/stop")]

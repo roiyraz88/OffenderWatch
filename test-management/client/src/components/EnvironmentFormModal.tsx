@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { LoadingSpinner } from "./LoadingSpinner";
 import type { Environment } from "../types/environment";
 
 export interface EnvironmentFormValues {
@@ -92,7 +93,14 @@ export function EnvironmentFormModal({
             Cancel
           </button>
           <button type="submit" disabled={submitting}>
-            {submitting ? "Saving…" : "Save"}
+            {submitting ? (
+              <>
+                <LoadingSpinner size="sm" announce={false} />
+                Saving…
+              </>
+            ) : (
+              "Save"
+            )}
           </button>
         </div>
       </form>

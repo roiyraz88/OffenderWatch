@@ -109,6 +109,12 @@ public static class HistoryClassifier
     /// (non-neutral) results, the success/failure classification switches more
     /// than once between consecutive entries. Skipped/Cancelled are ignored
     /// entirely (not counted toward the window, not counted as a switch).
+    /// Environment-agnostic by design — this method only ever sees the exact
+    /// status sequence it's handed. Callers that want flakiness scoped to a
+    /// single Environment (e.g. a controlled/alternate Environment used once
+    /// for a Regression/Recovery demonstration must never make the real
+    /// target's own consistent history look flaky) filter to that
+    /// Environment's own chronological entries *before* calling this.
     /// </summary>
     public static bool ComputeIsFlaky(IReadOnlyList<ScenarioStatus> chronological, int windowSize = 10)
     {

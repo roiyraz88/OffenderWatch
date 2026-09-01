@@ -1,0 +1,28 @@
+test: FR-03 / TC-003A — create offender with fully valid data succeeds
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr03-create-validation.spec.js:12
+status: passed
+durationMs: 2549
+
+--- steps ---
+  - Before Hooks (232ms)
+  - Navigate to "" (611ms)
+  - Wait for selector locator('table.grid') (41ms)
+  - Wait for selector locator('.pager span').filter({ hasText: /\([1-9]\d* results\)/ }) (46ms)
+  - Click locator('button.btn.primary').filter({ hasText: 'Add Offender' }) (40ms)
+  - Wait for selector locator('.modal-backdrop .modal') (12ms)
+  - Fill "Auto" locator('.modal-backdrop .modal').getByLabel('First name') (15ms)
+  - Fill "Zzz95378" locator('.modal-backdrop .modal').getByLabel('Last name') (17ms)
+  - Fill "AUTO1788214495378" locator('.modal-backdrop .modal').getByLabel('National ID') (22ms)
+  - Fill "1990-05-15" locator('.modal-backdrop .modal').getByLabel('Date of birth') (18ms)
+  - Select option locator('.modal-backdrop .modal').getByLabel('Risk level') (17ms)
+  - Select option locator('.modal-backdrop .modal').getByLabel('Status') (15ms)
+  - Click locator('.modal-backdrop .modal').locator('button[type="submit"]') (49ms)
+  - Wait for timeout (613ms)
+  - Fill "Zzz95378" locator('input.search') (21ms)
+  - Wait for timeout (412ms)
+  - Evaluate locator('table.grid tbody tr td.name-cell') (8ms)
+  - Expect "toContain" (0ms)
+  - GET "/AQApplication/Roie/api/offenders" (302ms)
+  - Attach "ow-test-data-created" (2ms)
+  - DELETE "/AQApplication/Roie/api/offenders/771" (83ms)
+  - After Hooks (57ms)

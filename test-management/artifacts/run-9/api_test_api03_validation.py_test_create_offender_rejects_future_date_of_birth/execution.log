@@ -1,0 +1,33 @@
+nodeid: test_api03_validation.py::test_create_offender_rejects_future_date_of_birth
+status: failed
+durationMs: 234
+
+failureMessage: test_api03_validation.py:93: AssertionError
+
+--- stack trace ---
+session = <requests.sessions.Session object at 0x0000021720B5CB50>
+base_url = 'https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie'
+unique_national_id = 'AUTO1788247474383'
+
+    @pytest.mark.known_bug
+    def test_create_offender_rejects_future_date_of_birth(session, base_url, unique_national_id):
+        """Known defect: BUG-003 — future DOB is accepted (confirmed at API layer)."""
+        payload = {
+            "firstName": "Future",
+            "lastName": "Api",
+            "nationalId": unique_national_id,
+            "dateOfBirth": "2099-01-01",
+            "riskLevel": "Low",
+            "status": "Active",
+        }
+        resp = session.post(f"{base_url}/api/offenders", json=payload)
+        created_id = resp.json().get("id") if resp.ok else None
+        try:
+>           assert resp.status_code == 400, (
+                f"expected 400 for future DOB, got {resp.status_code}: {resp.text[:200]}"
+            )
+E           AssertionError: expected 400 for future DOB, got 201: {"id":817,"firstName":"Future","lastName":"Api","nationalId":"AUTO1788247474383","dateOfBirth":"2099-01-01","riskLevel":"Low","status":"Active","createdAt":"2026-09-01T07:24:34.4725230Z"}
+E           assert 201 == 400
+E            +  where 201 = <Response [201]>.status_code
+
+test_api03_validation.py:93: AssertionError

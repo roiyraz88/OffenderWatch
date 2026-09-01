@@ -1,0 +1,13 @@
+{
+  "method": "DELETE",
+  "url": "https://svcdemoaz.puremonitor.supercom.com/AQApplication/api/offenders/870",
+  "headers": {
+    "User-Agent": "python-requests/2.32.3",
+    "Accept-Encoding": "gzip, deflate, zstd",
+    "Accept": "*/*",
+    "Connection": "keep-alive",
+    "Content-Type": "application/json",
+    "Content-Length": "0"
+  },
+  "body": null
+}

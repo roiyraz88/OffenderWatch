@@ -1,0 +1,13 @@
+{
+  "statusCode": 201,
+  "headers": {
+    "Date": "Tue, 01 Sep 2026 07:14:01 GMT",
+    "Content-Type": "application/json; charset=utf-8",
+    "Transfer-Encoding": "chunked",
+    "Connection": "keep-alive",
+    "Location": "/api/offenders/790/trail",
+    "Server": "Microsoft-IIS/10.0",
+    "X-Powered-By": "ASP.NET"
+  },
+  "body": "{\"ok\":true}"
+}

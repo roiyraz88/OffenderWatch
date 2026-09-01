@@ -1,0 +1,29 @@
+test: FR-01 / TC-001C, TC-001D — pager page count matches ceil(total / 5) and all offenders reachable [BUG-001]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr01-pagination.spec.js:6
+status: failed
+durationMs: 9060
+
+--- steps ---
+  - Before Hooks (273ms)
+  - Navigate to "" (8191ms)
+  - Wait for selector locator('table.grid') (59ms)
+  - Wait for selector locator('.pager span').filter({ hasText: /\([1-9]\d* results\)/ }) (32ms)
+  - Unexpected pager label format: "Page 1 of 2 (12 results)" (0ms)
+  - Evaluate locator('table.grid tbody tr td.name-cell') (13ms)
+  - Click locator('.pager button').filter({ hasText: 'Next' }) (59ms)
+  - Wait for timeout (321ms)
+  - Evaluate locator('table.grid tbody tr td.name-cell') (11ms)
+  - pager total pages should equal ceil(total / pageSize) (2ms) [FAILED]
+  - After Hooks (151ms)
+  - Worker Cleanup (65ms)
+
+failureMessage: Error: pager total pages should equal ceil(total / pageSize)
+
+--- stack trace ---
+Error: pager total pages should equal ceil(total / pageSize)
+
+[2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+Expected: [32m3[39m
+Received: [31m2[39m
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr01-pagination.spec.js:30:84

@@ -1,0 +1,43 @@
+test: FR-03 / TC-003D — creation is rejected for a duplicate National ID [BUG-014]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr03-create-validation.spec.js:71
+status: failed
+durationMs: 3482
+
+--- steps ---
+  - Before Hooks (222ms)
+  - Navigate to "" (1027ms)
+  - Wait for selector locator('table.grid') (49ms)
+  - Wait for selector locator('.pager span').filter({ hasText: /\([1-9]\d* results\)/ }) (99ms)
+  - POST "/AQApplication/Roie/api/offenders" (484ms)
+  - Attach "ow-test-data-created" (2ms)
+  - Click locator('button.btn.primary').filter({ hasText: 'Add Offender' }) (44ms)
+  - Wait for selector locator('.modal-backdrop .modal') (13ms)
+  - Fill "Dup" locator('.modal-backdrop .modal').getByLabel('First name') (17ms)
+  - Fill "Licate" locator('.modal-backdrop .modal').getByLabel('Last name') (24ms)
+  - Fill "AUTO1788214324124" locator('.modal-backdrop .modal').getByLabel('National ID') (19ms)
+  - Fill "1990-01-01" locator('.modal-backdrop .modal').getByLabel('Date of birth') (16ms)
+  - Select option locator('.modal-backdrop .modal').getByLabel('Risk level') (17ms)
+  - Select option locator('.modal-backdrop .modal').getByLabel('Status') (15ms)
+  - Click locator('.modal-backdrop .modal').locator('button[type="submit"]') (45ms)
+  - Wait for timeout (614ms)
+  - Fill "Licate" locator('input.search') (16ms)
+  - Wait for timeout (415ms)
+  - Evaluate locator('table.grid tbody tr td.name-cell') (7ms)
+  - an offender with a duplicate National ID must not be persisted (1ms) [FAILED]
+  - GET "/AQApplication/Roie/api/offenders" (70ms)
+  - Attach "ow-test-data-created" (1ms)
+  - DELETE "/AQApplication/Roie/api/offenders/750" (124ms)
+  - DELETE "/AQApplication/Roie/api/offenders/749" (79ms)
+  - After Hooks (141ms)
+  - Worker Cleanup (51ms)
+
+failureMessage: Error: an offender with a duplicate National ID must not be persisted
+
+--- stack trace ---
+Error: an offender with a duplicate National ID must not be persisted
+
+[2mexpect([22m[31mreceived[39m[2m).[22mnot[2m.[22mtoContain[2m([22m[32mexpected[39m[2m) // indexOf[22m
+
+Expected value: not [32m"Licate"[39m
+Received array:     [31m[[7m"Licate"[27m][39m
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr03-create-validation.spec.js:109:88

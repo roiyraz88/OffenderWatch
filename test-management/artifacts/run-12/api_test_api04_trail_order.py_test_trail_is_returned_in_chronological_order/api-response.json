@@ -1,0 +1,12 @@
+{
+  "statusCode": 200,
+  "headers": {
+    "Date": "Tue, 01 Sep 2026 09:24:16 GMT",
+    "Content-Type": "application/json; charset=utf-8",
+    "Transfer-Encoding": "chunked",
+    "Connection": "keep-alive",
+    "Server": "Microsoft-IIS/10.0",
+    "X-Powered-By": "ASP.NET"
+  },
+  "body": "[{\"id\":76,\"offenderId\":6,\"timestamp\":\"2026-08-09T09:09:00.000Z\",\"lat\":32.080588,\"lon\":34.795337,\"speedKmh\":8,\"batteryPct\":75,\"signal\":4},{\"id\":77,\"offenderId\":6,\"timestamp\":\"2026-08-09T07:00:00.000Z\",\"lat\":32.079643,\"lon\":34.801914,\"speedKmh\":29.1,\"batteryPct\":87,\"signal\":3},{\"id\":78,\"offenderId\":6,\"timestamp\":\"2026-08-09T07:24:00.000Z\",\"lat\":32.080552,\"lon\":34.803437,\"speedKmh\":52.4,\"batteryPct\":84,\"signal\":4},{\"id\":79,\"offenderId\":6,\"timestamp\":\"2026-08-09T10:51:00.000Z\",\"lat\":32.082411,\"lon\":34.797343,\"speedKmh\":5.5,\"batteryPct\":70,\"signal\":4},{\"id\":80,\"offenderId\":6,\"timestamp\":\"2026-08-09T07:52:00.000Z\",\"lat\":32.082578,\"lon\":34.801574,\"speedKmh\":35.1,\"batteryPct\":83,\"signal\":5},{\"id\":81,\"offenderId\":6,\"timestamp\":\"2026-08-09T08:35:00.000Z\",\"lat\":32.082677,\"lon\":34.797337,\"speedKmh\":46.8,\"batteryPct\":79,\"signal\":5},{\"id\":82,\"offenderId\":6,\"timestamp\":\"2026-08-09T09:31:00.000Z\",\"lat\":32.082891,\"lon\":34.795567,\"speedKmh\":49.3,\"batteryPct\":75,\"signal\":1},{\"id\":83,\"offenderId\":6,\"timestamp\":\"2026-08-09T10:32:00.000Z\",\"lat\":32.084922,\"lon\":34.797606,\"speedKmh\":26.3,\"batteryPct\":70,\"signal\":2},{\"id\":84,\"offenderId\":6,\"timestamp\":\"2026-08-09T09:54:00.000Z\",\"lat\":32.084409,\"lon\":34.797072,\"speedKmh\":30.5,\"batteryPct\":73,\"signal\":3},{\"id\":85,\"offenderId\":6,\"timestamp\":\"2026-08-09T11:19:00.000Z\",\"lat\":32.082182,\"lon\":34.800014,\"speedKmh\":0.3,\"batteryPct\":67,\"signal\":3},{\"id\":86,\"offenderId\":6,\"timestamp\":\"2026-08-09T08:13:00.000Z\",\"lat\":32.085527,\"lon\":34.799128,\"speedKmh\":19.5,\"batteryPct\":80,\"signal\":2},{\"id\":87,\"offenderId\":6,\"timestamp\":\"2026-08-09T10:15:00.000Z\",\"lat\":32.086206,\"lon\":34.796148,\"speedKmh\":34.1,\"batteryPct\":71,\"signal\":3},{\"id\":88,\"offenderId\":6,\"timestamp\":\"2026-08-09T08:57:00.000Z\",\"lat\":32.080998,\"lon\":34.797034,\"speedKmh\":14,\"batteryPct\":78,\"signal\":4}]"
+}

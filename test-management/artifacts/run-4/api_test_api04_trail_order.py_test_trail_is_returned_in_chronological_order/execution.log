@@ -1,0 +1,35 @@
+nodeid: test_api04_trail_order.py::test_trail_is_returned_in_chronological_order
+status: failed
+durationMs: 3
+
+failureMessage: test_api04_trail_order.py:20: AssertionError
+
+--- stack trace ---
+session = <requests.sessions.Session object at 0x000002144725B2D0>
+base_url = 'http://127.0.0.1:8792'
+
+    def test_trail_is_returned_in_chronological_order(session, base_url):
+        """Known defect: BUG-016 — trail API does not return points in order."""
+>       offender_id, points = _find_offender_with_trail(session, base_url)
+
+test_api04_trail_order.py:25: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = <requests.sessions.Session object at 0x000002144725B2D0>
+base_url = 'http://127.0.0.1:8792', min_points = 2
+
+    def _find_offender_with_trail(session, base_url, min_points=2):
+        """Picks any live offender with enough trail points, instead of
+        hardcoding id=1 (Cohen) — that seed offender was permanently corrupted
+        earlier today by BUG-007's app-crashing invalid-signal input, so
+        hardcoding it makes this test fail for the wrong reason.
+        """
+        offenders = session.get(f"{base_url}/api/offenders", params={"pageSize": 100}).json()["items"]
+        for o in offenders:
+            trail = session.get(f"{base_url}/api/offenders/{o['id']}/trail").json()
+            if len(trail) >= min_points:
+                return o["id"], trail
+>       raise AssertionError(f"no offender with >= {min_points} trail points found among {len(offenders)} offenders")
+E       AssertionError: no offender with >= 2 trail points found among 0 offenders
+
+test_api04_trail_order.py:20: AssertionError

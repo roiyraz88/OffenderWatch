@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { getDashboard } from "../api/dashboard";
 import { PassRateTrendChart } from "../components/PassRateTrendChart";
+import { LoadingSpinner } from "../components/LoadingSpinner";
+import { PageLoading } from "../components/PageLoading";
 import type { Dashboard } from "../types/dashboard";
 
 function formatTime(iso: string | null): string {
@@ -71,14 +73,23 @@ export function DashboardPage() {
   }, []);
 
   if (loading && !dashboard) {
-    return <p>Loading dashboard…</p>;
+    return <PageLoading label="Loading dashboard…" />;
   }
 
   if (error) {
     return (
       <div className="error-banner">
         <p>{error}</p>
-        <button onClick={load}>Retry</button>
+        <button onClick={load} disabled={loading}>
+          {loading ? (
+            <>
+              <LoadingSpinner size="sm" announce={false} />
+              Retrying…
+            </>
+          ) : (
+            "Retry"
+          )}
+        </button>
       </div>
     );
   }
@@ -92,7 +103,14 @@ export function DashboardPage() {
       <div className="page-header">
         <h1>Dashboard</h1>
         <button onClick={load} disabled={loading}>
-          {loading ? "Refreshing…" : "Refresh"}
+          {loading ? (
+            <>
+              <LoadingSpinner size="sm" announce={false} />
+              Refreshing…
+            </>
+          ) : (
+            "Refresh"
+          )}
         </button>
       </div>
 
@@ -189,7 +207,9 @@ export function DashboardPage() {
             {dashboard.currentlyFailingTests.map((t) => (
               <tr key={t.testCaseId}>
                 <td className="mono">
-                  <Link to={`/tests/${t.testCaseId}`}>{t.name}</Link>
+                  <Link to={`/tests/${t.testCaseId}`} className="truncate-cell" title={t.name}>
+                    {t.name}
+                  </Link>
                 </td>
                 <td>{t.suite}</td>
                 <td>{t.requirementId ?? "—"}</td>

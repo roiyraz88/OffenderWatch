@@ -1,0 +1,23 @@
+test: FR-01 / TC-001C, TC-001D — pager page count matches ceil(total / 5) and all offenders reachable [BUG-001]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr01-pagination.spec.js:6
+status: failed
+durationMs: 45098
+
+--- steps ---
+  - Before Hooks (249ms)
+  - Navigate to "" (46ms)
+  - Wait for selector locator('table.grid') (44912ms) [FAILED]
+  - After Hooks (94ms)
+  - Worker Cleanup (52ms)
+
+failureMessage: [31mTest timeout of 45000ms exceeded.[39m
+
+--- stack trace ---
+[31mTest timeout of 45000ms exceeded.[39m
+---
+Error: page.waitForSelector: Test timeout of 45000ms exceeded.
+Call log:
+[2m  - waiting for locator('table.grid') to be visible[22m
+
+    at OffenderListPage.goto (C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\pages\OffenderListPage.js:17:21)
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr01-pagination.spec.js:8:3

@@ -1,0 +1,21 @@
+test: FR-10 / TC-010E — signal outside 1-5 is rejected without saving a point [BUG-007 / BUG-018]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr10-location-validation.spec.js:18
+status: failed
+durationMs: 45098
+
+--- steps ---
+  - Before Hooks (245ms)
+  - POST "/api/offenders" (19ms)
+  - Attach "ow-test-data-created" (1ms)
+  - Navigate to "" (41ms)
+  - Wait for selector locator('table.grid') (44888ms) [FAILED]
+  - After Hooks (105ms)
+  - Worker Cleanup (47ms)
+
+failureMessage: [31mTest timeout of 45000ms exceeded.[39m
+
+--- stack trace ---
+[31mTest timeout of 45000ms exceeded.[39m
+---
+Error: apiRequestContext.delete: Target page, context or browser has been closed
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr10-location-validation.spec.js:67:25

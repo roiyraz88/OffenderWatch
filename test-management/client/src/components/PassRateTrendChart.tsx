@@ -11,8 +11,8 @@ const PAD_RIGHT = 12;
 const PAD_TOP = 12;
 const PAD_BOTTOM = 24;
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString();
 }
 
 // TM-07 (8.12) — a lightweight, dependency-free SVG trend line. No charting
@@ -53,13 +53,14 @@ export function PassRateTrendChart({ points }: PassRateTrendChartProps) {
             <g key={p.runId}>
               <circle cx={x(i)} cy={y(p.passRate)} r={4} className="trend-point">
                 <title>
-                  Run #{p.runId} · {p.environmentNameSnapshot} · {p.passRate.toFixed(1)}% · {p.passedCount} passed / {p.failedCount} failed /{" "}
-                  {p.expectedFailedCount} expected-fail
+                  Run #{p.runId} · {p.environmentNameSnapshot} · {formatDateTime(p.timestampUtc)} · {p.passRate.toFixed(1)}% pass rate
+                  {"\n"}
+                  {p.passedCount} passed / {p.failedCount} failed / {p.expectedFailedCount} expected-fail
                 </title>
               </circle>
               {(i === 0 || i === points.length - 1 || points.length <= 6) && (
                 <text x={x(i)} y={HEIGHT - 6} className="trend-axis-label" textAnchor="middle">
-                  {formatTime(p.timestampUtc)}
+                  #{i + 1}
                 </text>
               )}
             </g>

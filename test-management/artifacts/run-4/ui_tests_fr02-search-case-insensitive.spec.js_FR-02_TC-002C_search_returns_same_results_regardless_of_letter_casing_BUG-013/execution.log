@@ -1,0 +1,20 @@
+test: FR-02 / TC-002C — search returns same results regardless of letter casing [BUG-013]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr02-search-case-insensitive.spec.js:11
+status: failed
+durationMs: 45081
+
+--- steps ---
+  - Before Hooks (224ms)
+  - POST "/api/offenders" (13ms)
+  - Navigate to "" (33ms)
+  - Wait for selector locator('table.grid') (44907ms) [FAILED]
+  - After Hooks (89ms)
+  - Worker Cleanup (49ms)
+
+failureMessage: [31mTest timeout of 45000ms exceeded.[39m
+
+--- stack trace ---
+[31mTest timeout of 45000ms exceeded.[39m
+---
+Error: apiRequestContext.delete: Target page, context or browser has been closed
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr02-search-case-insensitive.spec.js:52:25

@@ -1,0 +1,38 @@
+test: FR-02 / TC-002C — search returns same results regardless of letter casing [BUG-013]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr02-search-case-insensitive.spec.js:11
+status: failed
+durationMs: 2391
+
+--- steps ---
+  - Before Hooks (298ms)
+  - POST "/AQApplication/Roie/api/offenders" (340ms)
+  - Navigate to "" (629ms)
+  - Wait for selector locator('table.grid') (47ms)
+  - Wait for selector locator('.pager span').filter({ hasText: /\([1-9]\d* results\)/ }) (49ms)
+  - Fill "casetest" locator('input.search') (22ms)
+  - Wait for timeout (411ms)
+  - Evaluate locator('table.grid tbody tr td.name-cell') (11ms)
+  - sanity check: the created offender must be findable at all (0ms)
+  - Fill "CASETEST" locator('input.search') (19ms)
+  - Wait for timeout (412ms)
+  - Evaluate locator('table.grid tbody tr td.name-cell') (11ms)
+  - an uppercase search should return the same offender as the exact-case search (5ms) [FAILED]
+  - DELETE "/AQApplication/Roie/api/offenders/875" (85ms)
+  - After Hooks (158ms)
+  - Worker Cleanup (64ms)
+
+failureMessage: Error: an uppercase search should return the same offender as the exact-case search
+
+--- stack trace ---
+Error: an uppercase search should return the same offender as the exact-case search
+
+[2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+[32m- Expected  - 3[39m
+[31m+ Received  + 1[39m
+
+[32m- Array [[39m
+[32m-   "casetest39636",[39m
+[32m- ][39m
+[31m+ Array [][39m
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr02-search-case-insensitive.spec.js:48:106

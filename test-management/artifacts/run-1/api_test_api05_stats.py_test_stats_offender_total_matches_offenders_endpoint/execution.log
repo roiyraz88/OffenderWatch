@@ -1,0 +1,3 @@
+nodeid: test_api05_stats.py::test_stats_offender_total_matches_offenders_endpoint
+status: passed
+durationMs: 123

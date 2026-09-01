@@ -4,6 +4,9 @@ import { ApiError } from "../api/client";
 import { getRun, stopRun } from "../api/runs";
 import { useRunLiveUpdates } from "../hooks/useRunLiveUpdates";
 import { EvidencePanel } from "../components/EvidencePanel";
+import { LoadingSpinner } from "../components/LoadingSpinner";
+import { PageLoading } from "../components/PageLoading";
+import { stripAnsi } from "../utils/stripAnsi";
 import type { RunDetail, RunSummary, ScenarioResult } from "../types/run";
 
 function formatDuration(seconds: number | null): string {
@@ -62,6 +65,11 @@ export function RunDetailPage() {
   }
 
   useEffect(() => {
+    // Navigating from one Run's detail page straight to another (same route,
+    // different :id) must not leave the previous Run's content on screen
+    // while the new one loads — reset before fetching so PageLoading shows.
+    setRun(null);
+    lastAppliedRef.current = 0;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
@@ -100,14 +108,23 @@ export function RunDetailPage() {
   }
 
   if (loading && !run) {
-    return <p>Loading run…</p>;
+    return <PageLoading label="Loading run…" />;
   }
 
   if (loadError && !run) {
     return (
       <div className="error-banner">
         <p>{loadError}</p>
-        <button onClick={load}>Retry</button>
+        <button onClick={load} disabled={loading}>
+          {loading ? (
+            <>
+              <LoadingSpinner size="sm" announce={false} />
+              Retrying…
+            </>
+          ) : (
+            "Retry"
+          )}
+        </button>
       </div>
     );
   }
@@ -117,21 +134,43 @@ export function RunDetailPage() {
   }
 
   const canStop = run.status === "Queued" || run.status === "Running";
+  // The connection indicator ("Live"/"Reconnecting…"/"Disconnected") only
+  // means something while the Run itself could still change — once it has
+  // reached a terminal status, nothing further will ever arrive over
+  // SignalR for it, so showing "Live" there would be misleading. This is a
+  // UI-only change: the SignalR subscription/connection itself is untouched.
+  const showConnectionIndicator = run.status === "Queued" || run.status === "Running";
 
   return (
     <section>
       <div className="page-header">
         <h1>Run #{run.id}</h1>
         <div>
-          <span className={`connection-indicator connection-${connectionState}`}>
-            {CONNECTION_LABEL[connectionState]}
-          </span>
+          {showConnectionIndicator && (
+            <span className={`connection-indicator connection-${connectionState}`}>
+              {CONNECTION_LABEL[connectionState]}
+            </span>
+          )}
           <button onClick={load} disabled={loading}>
-            Refresh
+            {loading ? (
+              <>
+                <LoadingSpinner size="sm" announce={false} />
+                Refreshing…
+              </>
+            ) : (
+              "Refresh"
+            )}
           </button>
           {canStop && (
             <button onClick={handleStop} disabled={stopping} style={{ marginLeft: "0.5rem" }}>
-              {stopping ? "Stopping…" : "Stop"}
+              {stopping ? (
+                <>
+                  <LoadingSpinner size="sm" announce={false} />
+                  Stopping…
+                </>
+              ) : (
+                "Stop"
+              )}
             </button>
           )}
         </div>
@@ -201,7 +240,7 @@ export function RunDetailPage() {
                 </tr>
                 {(sr.status === "Failed" || sr.status === "ExpectedFail") && sr.failureMessage && (
                   <tr className="failure-row">
-                    <td colSpan={7}>{sr.failureMessage}</td>
+                    <td colSpan={7}>{stripAnsi(sr.failureMessage)}</td>
                   </tr>
                 )}
               </Fragment>
@@ -215,6 +254,8 @@ export function RunDetailPage() {
           runId={run.id}
           scenarioResultId={evidenceFor.id}
           scenarioName={evidenceFor.name}
+          failureMessage={evidenceFor.failureMessage}
+          stackTrace={evidenceFor.stackTrace}
           onClose={() => setEvidenceFor(null)}
         />
       )}

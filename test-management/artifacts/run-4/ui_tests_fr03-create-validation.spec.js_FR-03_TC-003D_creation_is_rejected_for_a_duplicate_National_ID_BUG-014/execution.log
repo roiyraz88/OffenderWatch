@@ -1,0 +1,23 @@
+test: FR-03 / TC-003D — creation is rejected for a duplicate National ID [BUG-014]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr03-create-validation.spec.js:71
+status: failed
+durationMs: 45095
+
+--- steps ---
+  - Before Hooks (232ms)
+  - Navigate to "" (36ms)
+  - Wait for selector locator('table.grid') (44932ms) [FAILED]
+  - After Hooks (100ms)
+  - Worker Cleanup (48ms)
+
+failureMessage: [31mTest timeout of 45000ms exceeded.[39m
+
+--- stack trace ---
+[31mTest timeout of 45000ms exceeded.[39m
+---
+Error: page.waitForSelector: Test timeout of 45000ms exceeded.
+Call log:
+[2m  - waiting for locator('table.grid') to be visible[22m
+
+    at OffenderListPage.goto (C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\pages\OffenderListPage.js:17:21)
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr03-create-validation.spec.js:73:3

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { getTestHistory } from "../api/tests";
+import { LoadingSpinner } from "../components/LoadingSpinner";
+import { PageLoading } from "../components/PageLoading";
 import type { TestCaseDetail } from "../types/test";
 
 function formatTime(iso: string | null): string {
@@ -15,17 +17,24 @@ export function TestDetailPage() {
 
   const [test, setTest] = useState<TestCaseDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   async function load() {
+    setLoading(true);
     setError(null);
     try {
       setTest(await getTestHistory(testCaseId));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not reach the API.");
+    } finally {
+      setLoading(false);
     }
   }
 
   useEffect(() => {
+    // Navigating directly from one Test's detail page to another must not
+    // leave the previous test's content on screen while the new one loads.
+    setTest(null);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testCaseId]);
@@ -34,13 +43,22 @@ export function TestDetailPage() {
     return (
       <div className="error-banner">
         <p>{error}</p>
-        <button onClick={load}>Retry</button>
+        <button onClick={load} disabled={loading}>
+          {loading ? (
+            <>
+              <LoadingSpinner size="sm" announce={false} />
+              Retrying…
+            </>
+          ) : (
+            "Retry"
+          )}
+        </button>
       </div>
     );
   }
 
   if (!test) {
-    return <p>Loading test…</p>;
+    return <PageLoading label="Loading test…" />;
   }
 
   return (

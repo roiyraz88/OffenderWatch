@@ -1,0 +1,32 @@
+nodeid: test_api03_validation.py::test_create_offender_rejects_duplicate_national_id
+status: failed
+durationMs: 158
+
+failureMessage: test_api03_validation.py:72: AssertionError
+
+--- stack trace ---
+session = <requests.sessions.Session object at 0x000001AB47A1CB50>
+base_url = 'https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie'
+
+    @pytest.mark.known_bug
+    def test_create_offender_rejects_duplicate_national_id(session, base_url):
+        """Known defect: BUG-014 — National ID uniqueness is not enforced (confirmed at API layer)."""
+        payload = {
+            "firstName": "Dup",
+            "lastName": "Api",
+            "nationalId": "305412876",  # belongs to seeded offender David Cohen
+            "dateOfBirth": "1990-01-01",
+            "riskLevel": "Low",
+            "status": "Active",
+        }
+        resp = session.post(f"{base_url}/api/offenders", json=payload)
+        created_id = resp.json().get("id") if resp.ok else None
+        try:
+>           assert resp.status_code == 400, (
+                f"expected 400 for duplicate National ID, got {resp.status_code}: {resp.text[:200]}"
+            )
+E           AssertionError: expected 400 for duplicate National ID, got 201: {"id":720,"firstName":"Dup","lastName":"Api","nationalId":"305412876","dateOfBirth":"1990-01-01","riskLevel":"Low","status":"Active","createdAt":"2026-08-31T22:02:06.6442925Z"}
+E           assert 201 == 400
+E            +  where 201 = <Response [201]>.status_code
+
+test_api03_validation.py:72: AssertionError

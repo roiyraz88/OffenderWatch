@@ -1,0 +1,39 @@
+nodeid: test_api01_paging_search.py::test_paging_metadata_is_consistent
+status: failed
+durationMs: 453
+
+failureMessage: test_api01_paging_search.py:45: AssertionError
+
+--- stack trace ---
+session = <requests.sessions.Session object at 0x000001A7C945C190>
+base_url = 'https://svcdemoaz.puremonitor.supercom.com/AQApplication'
+
+    def test_paging_metadata_is_consistent(session, base_url):
+        """Known defect: BUG-001 — totalPages is computed with floor division
+        instead of ceiling division, so it under-reports by one whenever total
+        is not an exact multiple of pageSize. pageSize=5 is only chosen after
+        checking the live total isn't currently a multiple of 5, so this test
+        reliably exercises the bug regardless of how much seed data exists.
+        """
+        total = session.get(f"{base_url}/api/offenders", params={"pageSize": 1}).json()["total"]
+        page_size = 5 if total % 5 != 0 else 4  # avoid an accidental exact-multiple total
+    
+        resp = session.get(f"{base_url}/api/offenders", params={"page": 1, "pageSize": page_size})
+        assert resp.status_code == 200
+        body = resp.json()
+    
+        for key in ("items", "total", "page", "pageSize", "totalPages"):
+            assert key in body, f"missing '{key}' in paging response"
+    
+        assert body["page"] == 1
+        assert body["pageSize"] == page_size
+        assert len(body["items"]) <= body["pageSize"]
+>       assert body["totalPages"] == ceil_div(body["total"], body["pageSize"]), (
+            f"totalPages={body['totalPages']} but ceil({body['total']}/{page_size}) = "
+            f"{ceil_div(body['total'], page_size)} (looks like floor division is used server-side)"
+        )
+E       AssertionError: totalPages=5 but ceil(29/5) = 6 (looks like floor division is used server-side)
+E       assert 5 == 6
+E        +  where 6 = ceil_div(29, 5)
+
+test_api01_paging_search.py:45: AssertionError

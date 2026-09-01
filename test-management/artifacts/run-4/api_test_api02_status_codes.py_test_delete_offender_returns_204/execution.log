@@ -1,0 +1,25 @@
+nodeid: test_api02_status_codes.py::test_delete_offender_returns_204
+status: failed
+durationMs: 3
+
+failureMessage: test_api02_status_codes.py:51: KeyError
+
+--- stack trace ---
+session = <requests.sessions.Session object at 0x000002144725B2D0>
+base_url = 'http://127.0.0.1:8792', unique_national_id = 'AUTO1788213776822'
+
+    def test_delete_offender_returns_204(session, base_url, unique_national_id):
+        payload = {
+            "firstName": "Api",
+            "lastName": "Disposable",
+            "nationalId": unique_national_id,
+            "dateOfBirth": "1990-01-01",
+            "riskLevel": "Low",
+            "status": "Active",
+        }
+        created = session.post(f"{base_url}/api/offenders", json=payload).json()
+    
+>       resp = session.delete(f"{base_url}/api/offenders/{created['id']}")
+E       KeyError: 'id'
+
+test_api02_status_codes.py:51: KeyError

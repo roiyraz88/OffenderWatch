@@ -54,6 +54,10 @@ if (!Path.IsPathRooted(sqliteBuilder.DataSource))
 Directory.CreateDirectory(Path.GetDirectoryName(sqliteBuilder.DataSource)!);
 var connectionString = sqliteBuilder.ToString();
 
+// Temporary diagnostic (investigating a reported persistence issue) — logs
+// only the resolved absolute path, nothing sensitive, no data.
+Console.WriteLine($"[startup] SQLite database path: {sqliteBuilder.DataSource}");
+
 builder.Services.AddDbContext<TestManagementDbContext>(options =>
     options.UseSqlite(connectionString));
 
@@ -67,6 +71,7 @@ builder.Services.Configure<RunnerOptions>(builder.Configuration.GetSection("Runn
 builder.Services.AddSingleton<RunQueue>();
 builder.Services.AddSingleton<RunCancellationRegistry>();
 builder.Services.AddScoped<IRunService, RunService>();
+builder.Services.AddScoped<IRunComparisonService, RunComparisonService>(); // Bonus B-02
 builder.Services.AddScoped<RunOrchestrator>();
 builder.Services.AddHostedService<RunExecutionBackgroundService>();
 
@@ -86,7 +91,10 @@ builder.Services.AddScoped<ITestDataService, TestDataService>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Bonus B-05 — "Docker" is a real, separate ASPNETCORE_ENVIRONMENT (not
+// Development), so Swagger would otherwise silently disappear when running
+// under Docker Compose even though the assignment says to preserve it.
+if (app.Environment.IsDevelopment() || app.Environment.EnvironmentName == "Docker")
 {
     app.UseSwagger();
     app.UseSwaggerUI();
@@ -112,6 +120,7 @@ app.UseExceptionHandler(errorApp =>
             TestCaseNotFoundException ex => (StatusCodes.Status404NotFound, "Not found", ex.Message),
             TestDataRecordNotFoundException ex => (StatusCodes.Status404NotFound, "Not found", ex.Message),
             TestDataValidationException ex => (StatusCodes.Status400BadRequest, "Validation failed", ex.Message),
+            RunComparisonValidationException ex => (StatusCodes.Status400BadRequest, "Validation failed", ex.Message),
             _ => (StatusCodes.Status500InternalServerError, "Unexpected error", "An unexpected error occurred."),
         };
 

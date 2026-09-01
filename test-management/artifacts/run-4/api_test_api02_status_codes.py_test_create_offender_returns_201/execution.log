@@ -1,0 +1,26 @@
+nodeid: test_api02_status_codes.py::test_create_offender_returns_201
+status: failed
+durationMs: 3
+
+failureMessage: test_api02_status_codes.py:32: AssertionError
+
+--- stack trace ---
+session = <requests.sessions.Session object at 0x000002144725B2D0>
+base_url = 'http://127.0.0.1:8792', unique_national_id = 'AUTO1788213776808'
+
+    def test_create_offender_returns_201(session, base_url, unique_national_id):
+        payload = {
+            "firstName": "Api",
+            "lastName": "Created",
+            "nationalId": unique_national_id,
+            "dateOfBirth": "1990-01-01",
+            "riskLevel": "Low",
+            "status": "Active",
+        }
+        resp = session.post(f"{base_url}/api/offenders", json=payload)
+>       assert resp.status_code == 201, f"expected 201, got {resp.status_code}: {resp.text[:200]}"
+E       AssertionError: expected 201, got 404: {"message": "not found (local regression-demo target)"}
+E       assert 404 == 201
+E        +  where 404 = <Response [404]>.status_code
+
+test_api02_status_codes.py:32: AssertionError

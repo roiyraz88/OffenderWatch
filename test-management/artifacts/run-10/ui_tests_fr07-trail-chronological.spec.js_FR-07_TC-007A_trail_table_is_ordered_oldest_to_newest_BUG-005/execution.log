@@ -1,0 +1,42 @@
+test: FR-07 / TC-007A — trail table is ordered oldest to newest [BUG-005]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr07-trail-chronological.spec.js:12
+status: failed
+durationMs: 2892
+
+--- steps ---
+  - Before Hooks (239ms)
+  - POST "/AQApplication/Roie/api/offenders" (335ms)
+  - POST "/AQApplication/Roie/api/offenders/858/locations" (83ms)
+  - POST "/AQApplication/Roie/api/offenders/858/locations" (77ms)
+  - POST "/AQApplication/Roie/api/offenders/858/locations" (83ms)
+  - Navigate to "" (625ms)
+  - Wait for selector locator('table.grid') (54ms)
+  - Wait for selector locator('.pager span').filter({ hasText: /\([1-9]\d* results\)/ }) (23ms)
+  - Fill "Chrono41742" locator('input.search') (24ms)
+  - Wait for timeout (412ms)
+  - Click locator('table.grid tbody tr').filter({ hasText: 'Chrono41742' }).first() (69ms)
+  - Wait for selector locator('.trail-view') (16ms)
+  - Wait for selector locator('.trail-table-header') (10ms)
+  - Wait for timeout (510ms)
+  - Evaluate locator('.trail-view').locator('table.trail-grid tbody tr').locator('td:nth-child(2)') (14ms)
+  - Expect "toBe" (1ms)
+  - Expect "toEqual" (7ms) [FAILED]
+  - DELETE "/AQApplication/Roie/api/offenders/858" (87ms)
+  - After Hooks (312ms)
+  - Worker Cleanup (56ms)
+
+failureMessage: Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+--- stack trace ---
+Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+[32m- Expected  - 1[39m
+[31m+ Received  + 1[39m
+
+[2m  Array [[22m
+[32m-   1767254400000,[39m
+[2m    1767261600000,[22m
+[31m+   1767254400000,[39m
+[2m    1767268800000,[22m
+[2m  ][22m
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr07-trail-chronological.spec.js:34:44

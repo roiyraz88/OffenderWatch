@@ -1,0 +1,32 @@
+nodeid: test_api04_trail_order.py::test_trail_is_returned_in_chronological_order
+status: failed
+durationMs: 261
+
+failureMessage: test_api04_trail_order.py:28: AssertionError
+
+--- stack trace ---
+session = <requests.sessions.Session object at 0x000001C31215A310>
+base_url = 'https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie'
+
+    def test_trail_is_returned_in_chronological_order(session, base_url):
+        """Known defect: BUG-016 — trail API does not return points in order."""
+        offender_id, points = _find_offender_with_trail(session, base_url)
+    
+        timestamps = [_parse(p["timestamp"]) for p in points]
+>       assert timestamps == sorted(timestamps), (
+            f"trail points for offender {offender_id} must be ordered oldest -> newest; "
+            f"got out-of-order sequence: {[p['timestamp'] for p in points]}"
+        )
+E       AssertionError: trail points for offender 5 must be ordered oldest -> newest; got out-of-order sequence: ['2026-08-09T10:09:00.000Z', '2026-08-09T07:38:00.000Z', '2026-08-09T09:49:00.000Z', '2026-08-09T07:58:00.000Z', '2026-08-09T06:23:00.000Z', '2026-08-09T08:52:00.000Z', '2026-08-09T08:13:00.000Z', '2026-08-09T10:42:00.000Z', '2026-08-09T07:13:00.000Z', '2026-08-09T08:33:00.000Z', '2026-08-09T09:06:00.000Z', '2026-08-09T10:22:00.000Z', '2026-08-09T06:52:00.000Z', '2026-08-09T06:00:00.000Z', '2026-08-09T09:34:00.000Z']
+E       assert [datetime.dat...one.utc), ...] == [datetime.dat...one.utc), ...]
+E         
+E         At index 0 diff: datetime.datetime(2026, 8, 9, 10, 9, tzinfo=datetime.timezone.utc) != datetime.datetime(2026, 8, 9, 6, 0, tzinfo=datetime.timezone.utc)
+E         
+E         Full diff:
+E           [
+E         +     datetime.datetime(2026, 8, 9, 10, 9, tzinfo=datetime.timezone.utc),
+E         +     datetime.datetime(2026, 8, 9, 7, 38, tzinfo=datetime.timezone.utc),...
+E         
+E         ...Full output truncated (27 lines hidden), use '-vv' to show
+
+test_api04_trail_order.py:28: AssertionError

@@ -1,0 +1,32 @@
+nodeid: test_api01_paging_search.py::test_paging_metadata_is_consistent
+status: failed
+durationMs: 8
+
+failureMessage: test_api01_paging_search.py:43: AssertionError
+
+--- stack trace ---
+session = <requests.sessions.Session object at 0x000002144725B2D0>
+base_url = 'http://127.0.0.1:8792'
+
+    def test_paging_metadata_is_consistent(session, base_url):
+        """Known defect: BUG-001 — totalPages is computed with floor division
+        instead of ceiling division, so it under-reports by one whenever total
+        is not an exact multiple of pageSize. pageSize=5 is only chosen after
+        checking the live total isn't currently a multiple of 5, so this test
+        reliably exercises the bug regardless of how much seed data exists.
+        """
+        total = session.get(f"{base_url}/api/offenders", params={"pageSize": 1}).json()["total"]
+        page_size = 5 if total % 5 != 0 else 4  # avoid an accidental exact-multiple total
+    
+        resp = session.get(f"{base_url}/api/offenders", params={"page": 1, "pageSize": page_size})
+        assert resp.status_code == 200
+        body = resp.json()
+    
+        for key in ("items", "total", "page", "pageSize", "totalPages"):
+            assert key in body, f"missing '{key}' in paging response"
+    
+        assert body["page"] == 1
+>       assert body["pageSize"] == page_size
+E       assert 100 == 4
+
+test_api01_paging_search.py:43: AssertionError

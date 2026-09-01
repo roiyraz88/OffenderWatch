@@ -1,0 +1,35 @@
+test: FR-03 / TC-003B — creation is rejected when Last Name is empty [BUG-002]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr03-create-validation.spec.js:46
+status: failed
+durationMs: 1785
+
+--- steps ---
+  - Before Hooks (79ms)
+  - Navigate to "" (584ms)
+  - Wait for selector locator('table.grid') (40ms)
+  - Wait for selector locator('.pager span').filter({ hasText: /\([1-9]\d* results\)/ }) (105ms)
+  - Click locator('button.btn.primary').filter({ hasText: 'Add Offender' }) (50ms)
+  - Wait for selector locator('.modal-backdrop .modal') (12ms)
+  - Fill "NoLast" locator('.modal-backdrop .modal').getByLabel('First name') (16ms)
+  - Fill "" locator('.modal-backdrop .modal').getByLabel('Last name') (14ms)
+  - Fill "AUTO1788213609604" locator('.modal-backdrop .modal').getByLabel('National ID') (19ms)
+  - Fill "1990-01-01" locator('.modal-backdrop .modal').getByLabel('Date of birth') (20ms)
+  - Click locator('.modal-backdrop .modal').locator('button[type="submit"]') (53ms)
+  - Wait for timeout (515ms)
+  - Add Offender modal should remain open after an invalid submit (2ms) [FAILED]
+  - GET "/AQApplication/Roie/api/offenders" (64ms)
+  - Attach "ow-test-data-created" (1ms)
+  - DELETE "/AQApplication/Roie/api/offenders/685" (79ms)
+  - After Hooks (124ms)
+  - Worker Cleanup (44ms)
+
+failureMessage: Error: Add Offender modal should remain open after an invalid submit
+
+--- stack trace ---
+Error: Add Offender modal should remain open after an invalid submit
+
+[2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+Expected: [32mtrue[39m
+Received: [31mfalse[39m
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr03-create-validation.spec.js:58:99

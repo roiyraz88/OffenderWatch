@@ -1,15 +1,21 @@
 # OffenderWatch — Test Management Platform (Part 5)
 
-Status: **Step 8 — Dynamic Dashboard** (TM-07) done — this completes every
-TM-01..TM-08 requirement in the official assignment.
-See [`PART5_PLAN.md`](../PART5_PLAN.md) at the repo root for the full
-implementation plan and current step.
+Status: **COMPLETE.** Every TM-01..TM-08 requirement in the official
+assignment is implemented, tested, and verified against the real
+OffenderWatch application. See [`PART5_PLAN.md`](../PART5_PLAN.md) at the
+repo root for the full step-by-step implementation history and
+verification record.
 
-TM-01 (Environment configuration), TM-02 (real run execution), TM-03 (live
-SignalR progress), TM-04 (test history), TM-06 (test-data ownership +
-cleanup), TM-07 (dynamic Go/No-Go dashboard), and TM-08 (evidence
-capture/retrieval) are all fully working end-to-end. `PART5_PLAN.md`'s
-Step 9 (final verification & submission dataset) is what remains.
+| Requirement | What it is | Where |
+|---|---|---|
+| TM-01 | Environment configuration | `Controllers/EnvironmentController.cs`, `Services/EnvironmentService.cs`, `client/src/pages/EnvironmentsPage.tsx` |
+| TM-02 | Real run execution & management | `Services/RunOrchestrator.cs`, `RunService.cs`, `Controllers/RunController.cs`, `client/src/pages/RunsPage.tsx`/`RunDetailPage.tsx` |
+| TM-03 | Real-time progress | `Hubs/RunHub.cs`, `client/src/hooks/useRunLiveUpdates.ts` |
+| TM-04 | Test history (Regression/Recovery/flakiness) | `Services/HistoryClassifier.cs`, `TestHistoryService.cs`, `client/src/pages/TestsPage.tsx`/`TestDetailPage.tsx` |
+| TM-05 | Persistence | SQLite + EF Core throughout (`Data/TestManagementDbContext.cs`, migrations) — every Run/ScenarioResult/EvidenceArtifact/TestDataRecord survives an app restart; see [Persistence](#persistence-tm-05) below |
+| TM-06 | Test-data ownership & cleanup | `Services/TestDataService.cs`, `automation/*/test_data_capture.*`, `client/src/pages/TestDataPage.tsx` |
+| TM-07 | Dynamic Go/No-Go dashboard | `Services/DashboardService.cs`, `client/src/pages/DashboardPage.tsx` |
+| TM-08 | Evidence capture & retrieval | `RunOrchestrator.HandleArtifactCreatedAsync`, `Controllers/EvidenceController.cs`, `automation/*/evidence_capture.*` |
 
 ## Structure
 
@@ -17,8 +23,10 @@ Step 9 (final verification & submission dataset) is what remains.
 - `server.Tests/` — xUnit backend tests (temp-SQLite-per-test, never touch
   `data/testmanagement.db` or the real OffenderWatch app)
 - `client/` — React + Vite + TypeScript
-- `data/` — the SQLite database file
-- `artifacts/` — evidence files (screenshots, logs) once Step 6 adds capture
+- `data/testmanagement.db` — the final submission SQLite database (committed —
+  see [Final submission data](#final-submission-data))
+- `artifacts/` — the matching evidence files (screenshots, logs, API
+  request/response JSON, Playwright traces) for that same database
 
 ## Architecture
 
@@ -238,48 +246,123 @@ own `ContentRootPath` at runtime:
 is Windows-specific — swap it for `node_modules/.bin/playwright` to run the
 orchestrator on macOS/Linux.
 
-## Run locally
+## Run locally — full reproducible setup
 
-**Server** (Swagger at `/swagger`, health check at `/api/health`):
+Everything below assumes a clean machine. Commands are given for
+PowerShell/Bash from the repo root unless a `cd` is shown; adjust for your
+shell as needed. No step here depends on this specific machine — every
+path the platform itself uses is relative (see [Runner
+configuration](#runner-configuration)).
+
+> **Prefer one command?** `docker compose up --build` from the repo root
+> does all of this for you — see **Bonus B-05 — One-command startup** under
+> [Bonus features](#bonus-features) below. Everything in this section is
+> still the normal, non-Docker workflow and remains fully supported.
+
+### 1. Prerequisites
+
+- **.NET 8 SDK** (`dotnet --version` should print `8.x`). If not installed:
+  `winget install Microsoft.DotNet.SDK.8` (Windows) or the equivalent for
+  your OS.
+- **Node.js 18+** and **npm** (for both the React client and the
+  Playwright suite).
+- **Python 3.10+** and **pip** (for the pytest suite).
+- **`dotnet-ef`** (only needed if you want to create/apply migrations
+  yourself — a migration already exists and is committed):
+  `dotnet tool install --global dotnet-ef`
+
+### 2. Automation suites (required for the platform to actually run anything)
 
 ```bash
-cd server
+cd automation/api
+pip install -r requirements.txt
+
+cd ../ui
+npm install
+npx playwright install chromium   # downloads the browser binary (not committed to git)
+```
+
+Both suites are also independently runnable from the command line — see
+[`automation/README.md`](../automation/README.md). Neither is hard-coded
+to any target: both require `OFFENDERWATCH_BASE_URL` and fail immediately
+with a clear error if it's unset.
+
+### 3. The Part 5 server
+
+```bash
+cd test-management/server
+dotnet restore
+dotnet build
+dotnet ef database update   # only needed if data/testmanagement.db doesn't already exist —
+                             # the committed final-submission database already has the schema applied
 dotnet run
 ```
 
-Listens on `http://localhost:5174` by default (see
-`server/Properties/launchSettings.json`). On first run (or after a schema
-change), apply migrations first: `dotnet ef database update`.
+Listens on `http://localhost:5174` (see
+`server/Properties/launchSettings.json`); Swagger at `/swagger`, health
+check at `/api/health`. The `Runner` section of `appsettings.json`
+controls where the server looks for `automation/api` and `automation/ui`
+relative to itself (`RepoRootRelativeToContentRoot`, default `../..`) — no
+change needed if you cloned the repo as-is. **Windows vs. macOS/Linux**:
+`Runner:PlaywrightExecutableRelativePath` defaults to
+`node_modules/.bin/playwright.cmd` (the Windows shim); on macOS/Linux
+change it to `node_modules/.bin/playwright` in `appsettings.json` (or an
+environment-specific override) before starting a run.
 
-**Client**:
+### 4. The React client
 
 ```bash
-cd client
+cd test-management/client
 npm install
-cp .env.example .env.local   # points VITE_API_BASE_URL at the server above
+cp .env.example .env.local   # sets VITE_API_BASE_URL=http://localhost:5174
 npm run dev
 ```
 
-Listens on `http://localhost:5173` by default — matches the server's
-`ClientOrigins` CORS config in `server/appsettings.json`.
+Listens on `http://localhost:5173` — matches the server's `ClientOrigins`
+CORS config in `server/appsettings.json`.
 
-**Backend tests** (fast, deterministic, never touch the real OffenderWatch
-app — see `server.Tests/`):
+### 5. Backend tests (fast, deterministic, no real network calls)
 
 ```bash
-cd server.Tests
+cd test-management/server.Tests
 dotnet test
 ```
 
-**Using the platform**: open `http://localhost:5173/environments`, add an
-Environment pointing at a real OffenderWatch instance (e.g.
-`https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie`), then go to
-`/runs` and click **Start New Run**. You'll land on the run's detail page;
-click **Refresh** to see progress (Step 4 has no live updates yet — see
-above), or **Stop** while it's Queued/Running.
+Every test uses its own throwaway temp-file SQLite database and, where
+HTTP is involved (TM-06 cleanup), a fake `HttpClient` handler — nothing
+here ever touches `data/testmanagement.db` or the real OffenderWatch app.
+
+### Using the platform
+
+Open `http://localhost:5173/environments`, add an Environment pointing at
+a real OffenderWatch instance (e.g.
+`https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie`), then go
+to `/runs` and click **Start New Run**. You'll land on the run's detail
+page and watch it update live via SignalR — no manual refresh needed
+(**Refresh** remains available as a fallback) — or click **Stop** while
+it's Queued/Running. `/tests` shows history/Regression/Recovery/flakiness
+per test; `/test-data` shows and cleans up automation-owned application
+data; `/` is the dynamic Dashboard.
 
 Full database schema rationale is documented in `PART5_PLAN.md`'s Step 2
 section.
+
+## Persistence (TM-05)
+
+There is no dedicated "persistence feature" separate from the rest of the
+platform — TM-05 is satisfied by the same SQLite + EF Core foundation
+every other requirement is built on (established Step 2, reused
+unchanged by every step since): every `TestRun`, `ScenarioResult`,
+`TestCase`, `EvidenceArtifact`, and `TestDataRecord` is written through EF
+Core to `test-management/data/testmanagement.db`, a real on-disk file, not
+an in-memory store — closing and restarting the server (or the whole
+machine) does not lose anything. The schema is fully reproducible from the
+one committed EF Core migration (`Migrations/
+20260831143752_InitialTestManagementSchema`), never created by hand.
+Verified directly for this submission: the server was stopped and
+restarted multiple times across Step 9's real-run session, and the
+Dashboard/Runs/Tests/Test Data pages continued to show exactly the same
+historical data before and after each restart.
 
 ## Test history (TM-04 / Step 6)
 
@@ -307,13 +390,28 @@ Null whenever the latest comparable result isn't failure-like.
 **LastPass**: the most recent Run+timestamp where the TestCase passed, or
 null if it has never passed.
 
-**Flakiness** (`IsFlaky`): among the **last 10 comparable** (non-neutral)
-results, count how many times the success/failure classification switches
-between consecutive entries; flaky when that count is **greater than 1**.
-`Passed -> Failed -> Passed` (2 switches) is flaky; `Passed -> Failed ->
-Failed` (1 switch — a regression, not flakiness) is not;
-`Failed -> Passed` (1 switch — a recovery) is not. This is intentionally a
-simple, deterministic rule — no statistical scoring.
+**Flakiness** (`IsFlaky`, Bonus **B-01**): among the **last 10 comparable**
+(non-neutral) results, count how many times the success/failure
+classification switches between consecutive entries; flaky when that count
+is **greater than 1**. `Passed -> Failed -> Passed` (2 switches) is flaky;
+`Passed -> Failed -> Failed` (1 switch — a regression, not flakiness) is
+not; `Failed -> Passed` (1 switch — a recovery) is not. This is
+intentionally a simple, deterministic rule — no statistical scoring.
+
+Flakiness is **environment-aware**: the window above is taken only from the
+TestCase's results on the *same Environment as its most recent execution*
+(`TestHistoryService.BuildSummary`), using the run's immutable
+`EnvironmentNameSnapshot` — never mixing Environments together when
+detecting alternation. A Pass on the real target followed once by a Fail on
+a different, controlled Environment (see
+[Regression/Recovery demonstration](#regressionrecovery-demonstration)
+below) must not make the real target's own consistent history look flaky,
+and doesn't. `Regression`/`Recovery`/`StillPassing`/`StillFailing`/
+`CurrentFailureSince` stay cross-environment and unaffected by this
+scoping — only `IsFlaky` is Environment-scoped. See it working: open
+`/tests` (or `/tests/2`'s history) — `test_search_is_partial_match` is
+**not** flagged Flaky despite its real, different-Environment `Failed`
+result at Run #4, because Roie's own history never alternates.
 
 ## Evidence (TM-08 / Step 6)
 
@@ -627,23 +725,349 @@ functionally replaces it *for the new platform only* — it reads live
 SQLite data through the Part 5 API, never the Part 4 dashboard's own
 data/calculations.
 
-## Regression/Recovery demonstration (6.27)
+## Regression/Recovery demonstration
 
-Nearly every defect in this app is **deterministic** (the same input always
-produces the same wrong output) — which is itself the honest finding from
-Part 3, not a shortcoming of this platform. Two full real runs back-to-back
-against the real demo app (recorded during this step's verification)
-produced byte-for-byte identical results, confirming this. To demonstrate
-Regression/Recovery **without changing any assertion or touching any
-persisted row directly**, a third real Environment was registered through
-the platform's own `/environments` page pointing at a temporary local HTTP
-stub (not the real demo app) that legitimately makes
-`test_search_is_partial_match` fail its own real assertion ("no offender
-with a usable last name found") by returning an empty offender list — a
-real, different, real execution target, exactly the "legitimate
-scenario/environment/setup" the plan anticipates for this situation.
-Sequence actually recorded: Run 1 (real app) Passed -> Run 2 (real app)
-StillPassing -> Run 3 (local stub) **Regression** -> Run 4 (real app)
-**Recovery** — verified both via `GET /api/tests/{id}/history` and live in
-the React Test Details page. The stub server, its Environment row, and its
-Run were part of this verification only, not a permanent fixture.
+Nearly every defect in this app is **deterministic** (the same input
+always produces the same wrong output) — which is itself the honest
+finding from Part 3, not a shortcoming of this platform: real, identical
+runs against the real demo app produce byte-for-byte identical results
+every time. To demonstrate a real Regression → Recovery transition
+**without changing any assertion or touching any persisted row directly**,
+a second, deliberately controlled Environment was registered through the
+platform's own `/environments` page — a temporary local HTTP server
+(`http://127.0.0.1:8792`, stdlib `http.server`, not part of any
+deliverable) standing in as a real, different, *legitimate* execution
+target, exactly the "legitimate scenario/environment/setup" the plan
+anticipates for an app whose defects don't naturally flap. It answers `GET
+/api/offenders` with an empty result set, which makes
+`test_search_is_partial_match` (normally `Passed` against the real app)
+genuinely fail its own real assertion ("no offender with a usable last
+name found").
+
+This is exactly how the final submission's Regression/Recovery pair was
+produced (see [Final submission data](#final-submission-data) below) — the
+technique is not a one-off; it's documented, reusable, and named clearly
+enough (`Local Regression Demo Target (not the real app)`) that no
+reviewer mistakes it for a second real target environment. After it had
+served its purpose the Environment *row* was deleted through the real
+`DELETE /api/environments/{id}` endpoint — its Run's `EnvironmentNameSnapshot`/
+`BaseUrlSnapshot` survive intact regardless (Step 3's historical-preservation
+design), which is exactly why `/environments` shows one clean, real,
+currently-usable Environment while the Dashboard/Test History still show
+two Environments' worth of real historical data.
+
+## Bonus features
+
+Attempted bonuses, per the assignment's bonus list:
+
+### B-01 — Flakiness detection ✅ implemented
+
+Covered above under [Test history](#test-history-tm-04--step-6) — a
+per-Environment last-10-comparable-results switch-count rule
+(`HistoryClassifier.ComputeIsFlaky`, scoped per-Environment in
+`TestHistoryService.BuildSummary`). **See it working**: open `/tests` —
+the *Flaky* column/badge; `/tests/2` for the specific case where a
+real, different-Environment failure does **not** make the real target's
+own consistent Pass history look flaky.
+
+### B-02 — Run comparison ✅ implemented
+
+A read-only diff between any two existing Runs — the view a QA lead would
+open before approving a release.
+
+- **API**: `GET /api/runs/compare?baseRunId={id}&compareRunId={id}`
+  (`Controllers/RunController.cs` / `Services/RunComparisonService.cs`).
+  Direction is explicit and always **Base Run -> Compare Run**. Built
+  entirely on top of the existing `IRunService.GetByIdAsync` (the same data
+  `/runs/:id` already renders) — no new table, nothing invented, and
+  scenarios are matched between the two runs by the stable `TestCase.Id`
+  (via `ScenarioResultDto.TestCaseId`), never by display name.
+- **Classification** (`Services/RunComparisonClassifier.cs`, pure and
+  independently unit-tested — a deliberately separate class from
+  `HistoryClassifier`, so B-02 can never change TM-04's own history
+  behavior): `Regression` (Base `Passed` -> Compare `Failed`), `Recovery`
+  (Base `Failed`/`ExpectedFail` -> Compare `Passed`), `New` (only in
+  Compare), `Missing` (only in Base), plus truthful `StillPassing` /
+  `StillFailing` / `ExpectedFailure` (both sides `ExpectedFail` — a known
+  defect staying known) / `OtherChange` (e.g. `Passed -> ExpectedFail`,
+  deliberately **not** an automatic unexpected Regression, per the
+  assignment) / `Unchanged`. A Skipped/Cancelled result on either side is
+  never comparable — it is reported as `Unchanged` (identical) or
+  `OtherChange` (different), and never manufactures a false
+  Regression/Recovery.
+- **Different Environments are allowed, never blocked** — comparing across
+  Environments is exactly what "any two runs" requires. When the two runs'
+  immutable `EnvironmentNameSnapshot`/`BaseUrlSnapshot` differ, the API sets
+  `environmentsDiffer: true` and the UI shows a prominent warning banner
+  ("These runs were executed against different environments..."). The
+  comparison always uses each run's own frozen snapshot, never a live
+  Environment lookup — it still works correctly even if that Environment
+  was since renamed or deleted.
+- **Incomplete runs**: if either run's status isn't `Completed`
+  (`Queued`/`Running`/`Stopped`/`Failed`), the API sets
+  `baseRunIncomplete`/`compareRunIncomplete` and the UI shows a warning that
+  the comparison may not represent a complete suite — the comparison itself
+  is never hidden or blocked.
+- **UI**: `/runs/compare` (also `/runs/compare?base={id}&compare={id}` for a
+  direct/shareable link), reached via the **Compare Runs** link on the
+  `/runs` page. Two app-styled Run selectors (Base/Compare, each showing
+  Run #, Environment, date/time, status), a Compare button that's disabled
+  when the same run is picked on both sides, then: a Base -> Compare
+  summary with per-run Environment/status/trigger/timing, four summary
+  cards (Regressions/Recoveries/New/Missing), a Totals-delta table
+  (Passed/Failed/ExpectedFail/Skipped/Total, each Base -> Compare and the
+  change), a filterable Test Differences table (All Changes / Regressions /
+  Recoveries / New / Missing / Unchanged) using the existing status-badge
+  styling, and a click-through on any test row into its existing
+  `/tests/:id` history view (TM-04) — B-02 never duplicates that
+  implementation. Selecting/changing runs here never creates, starts, or
+  modifies any Run.
+- **See it working**: open `/runs`, click **Compare Runs**, pick Run #4
+  (`Local Regression Demo Target`) as Base and Run #5 (`Roie (Live Demo)`)
+  as Compare — 5 Recoveries, the different-environments warning banner, and
+  the full per-test diff (this is the same Run #4/#5 pair used for the
+  [Regression/Recovery demonstration](#regressionrecovery-demonstration)
+  above).
+- **Tests**: `server.Tests/RunComparisonServiceTests.cs` — Regression/
+  Recovery/New/Missing classification, non-regression for
+  Passed->Passed/Failed->Failed, ExpectedFail handling (both directions),
+  Skipped/Cancelled never producing a false transition, totals-delta
+  correctness, cross-Environment comparison + the `environmentsDiffer`
+  flag, immutable-snapshot reuse (no live Environment row needed),
+  nonexistent-run 404, same-run-twice validation, Stopped/incomplete-run
+  warning flags, empty-run comparison, and a read-only guarantee (neither
+  Run/ScenarioResult is modified by comparing).
+
+### B-05 — One-command startup ✅ implemented
+
+`docker compose up --build` from the **repo root** brings up the whole
+platform — API + client + SQLite persistence — with only Git/Docker/Docker
+Compose installed on the machine (no local .NET SDK/Node/Python/Playwright
+required for this path).
+
+- **Prerequisite**: Docker + Docker Compose (Docker Desktop on
+  Windows/macOS, or the `docker compose` plugin on Linux).
+- **Command** (from the repo root, the same directory as this README's
+  parent's parent — where `docker-compose.yml` lives):
+  ```
+  docker compose up --build
+  ```
+- **Open the UI**: <http://localhost:8081> — the full React app, served by
+  nginx.
+- **Swagger/API directly**: <http://localhost:5174/swagger> (same port
+  local `dotnet run` already uses) — also reachable same-origin through the
+  UI's own origin at <http://localhost:8081/swagger>.
+- **Stop**: `docker compose down` — stops and removes the containers only.
+  **Never run `docker compose down -v`** as routine — there is no Docker
+  volume to begin with (see persistence below), so `-v` has nothing to do
+  here, but the flag exists specifically to destroy persistent volumes and
+  must never become a habit.
+- **Architecture**: two containers, no database container — SQLite stays
+  SQLite. `server` (`test-management/server/Dockerfile`, multi-stage:
+  `dotnet publish` on the SDK image, runs on the ASP.NET runtime image) and
+  `client` (`test-management/client/Dockerfile`, multi-stage: `npm ci &&
+  npm run build`, served by nginx — never the Vite dev server in Docker).
+  Same-origin routing: the browser only ever talks to nginx
+  (`test-management/client/nginx.conf`), which reverse-proxies `/api/` and
+  `/hubs/` (SignalR, with `Upgrade`/`Connection` headers for the WebSocket
+  transport TM-03 needs) and `/swagger/` to the `server` container over
+  Docker's internal network — the browser itself never needs to resolve a
+  Docker service name.
+- **SQLite persistence**: `test-management/data/` and
+  `test-management/artifacts/` are **bind-mounted** straight from the host
+  (`docker-compose.yml`'s `volumes:`) into the container at the exact same
+  relative paths the app already resolves locally — not copied into an
+  image layer, and not a separate named Docker volume either. This means
+  `docker compose up` on a freshly-cloned repo shows the platform's real,
+  already-committed historical data immediately, and a restart
+  (`docker compose down && docker compose up`) can't lose anything — the
+  data was never inside a container to begin with. Verified locally:
+  identical Run/ScenarioResult/TestDataRecord counts, and the same evidence
+  file byte-readable, before and after a full `down`/`up` cycle.
+- **pytest in Docker**: the `server` image installs Python 3 + the repo's
+  own pinned `automation/api/requirements.txt` (`requests==2.32.3`,
+  `pytest==8.3.5`, `pytest-html==4.1.1`) and copies `automation/api/` in
+  verbatim — RunOrchestrator's `python3 -m pytest -v` child-process launch
+  is completely unchanged.
+- **Playwright in Docker**: the image installs Node 20 + `npm ci` against
+  the repo's own pinned `automation/ui/package-lock.json`
+  (`@playwright/test@1.62.1`) and runs `npx playwright install --with-deps
+  chromium` so the Chromium binary + its Linux OS libraries are present —
+  no host browser install to fall back on. The Windows-only
+  `node_modules/.bin/playwright.cmd` default remains the local default;
+  `appsettings.Docker.json` (loaded only when
+  `ASPNETCORE_ENVIRONMENT=Docker`, set by the Dockerfile) overrides just
+  `Runner:PlaywrightExecutableRelativePath` to the Linux
+  `node_modules/.bin/playwright` shim and `Runner:PythonExecutable` to
+  `python3` — a config override, not an OS-branch in `RunOrchestrator`
+  itself, so Windows local development is completely untouched.
+- **Windows local development remains available and unaffected**: `dotnet
+  run` (backend) and `npm run dev` (frontend) still work exactly as before
+  — nothing about local `appsettings.Development.json`, ports, or
+  `RunnerOptions` defaults changed; Docker only adds an additional,
+  optional `appsettings.Docker.json` layer that local runs never load.
+- **Health checks**: the `server` container has a Docker `HEALTHCHECK`
+  against `/api/health`; `client` `depends_on: server: condition:
+  service_healthy`, so nginx only starts once the API is actually ready —
+  a slow API start never shows the reviewer a "502" on first load.
+- **Target Environments stay dynamic**: nothing OffenderWatch-specific
+  (`Roie`, `Base Application`, or any BaseUrl) is hard-coded anywhere in
+  Docker config — every Run still targets whatever Environment is selected
+  through the platform itself (TM-01), completely unchanged.
+- **Verified**: `docker compose config`, `docker compose build`, and
+  `docker compose up` all succeed; the UI, REST API, Swagger, and SignalR
+  negotiation (WebSockets listed as the first available transport) all work
+  through the containerized reverse proxy; all of `/runs`, `/runs/:id`,
+  `/tests`, `/test-data`, `/runs/compare`, and evidence content load real
+  historical data identical to local `dotnet run`; SQLite + evidence
+  persistence survive a full container recreation. **Not** verified inside
+  Docker: actually starting a Run (would make a real, non-reversible call
+  against the live OffenderWatch target — Python/pytest/Node/Playwright
+  toolchain presence and versions inside the container were confirmed
+  directly instead, `python3 -m pytest --version` / `npx playwright
+  --version`, matching the repo's pinned versions exactly).
+
+### B-06 — Platform self-tests ✅ implemented
+
+`server.Tests/` covers the platform API itself (136 tests, `dotnet test`),
+including — per the bonus's own minimum bar — both named areas in depth:
+TM-04 history/transition logic (`HistoryClassifierTests.cs`,
+`TestHistoryServiceTests.cs`: transitions, CurrentFailureSince, LastPass,
+environment-aware flakiness) and TM-06 test-data cleanup's seeded-data
+protection (`TestDataServiceTests.cs`:
+`Clean_SeedSafetyGuard_RejectsRecordWhoseIdentifierIsNotAutoPrefixed`, the
+LocationPoint-unsupported-cleanup guard, and more) — plus RunOrchestrator
+event ingestion/idempotency, RunService, EnvironmentService, the Dashboard
+service, evidence, and B-02's own comparison logic above.
+
+## Final submission data
+
+`test-management/data/testmanagement.db` (committed) and
+`test-management/artifacts/` (committed) together are the final submission
+dataset — everything in both was produced by real executions through the
+actual Part 5 application and runner flow. Nothing was inserted, edited,
+or faked directly in SQLite.
+
+- **6 real recorded Runs** (`Run #1`–`#6`), all `Completed` except `Run #3`
+  (deliberately `Stopped` mid-execution, live, from the React UI — a real
+  demonstration of TM-02's cancellation behavior: its already-finished
+  scenarios stayed final, its not-yet-started ones became `Cancelled`).
+- **2 Environments represented** in the historical Run data —
+  `Roie (Live Demo)` (the real target, still configured and usable) and
+  `Local Regression Demo Target (not the real app)` (the controlled
+  Environment described above, whose Environment row was deleted after
+  producing the demonstration — its Run's snapshot remains, exactly
+  proving TM-01's own deletion-safety guarantee).
+- **A real Regression → Recovery pair**, `test_api01_paging_search.py::test_search_is_partial_match`:
+  `Run #1 Passed (FirstResult)` → `Run #2/#3 StillPassing` →
+  `Run #4 Failed (Regression, against the controlled Environment)` →
+  `Run #5 Passed (Recovery, back against the real app)` — visible on
+  `/tests/2` and cross-verified against `GET /api/tests/2/history`.
+- **`ExpectedFail` examples throughout** — 26 known, `BugId`-tagged
+  defects reproduce identically on every real run against the real app.
+- **Historical UI screenshot evidence** — every UI scenario across all 6
+  runs has a final screenshot (pass or fail); failed/`ExpectedFail` ones
+  also have a Playwright trace.
+- **Historical API request/response evidence** — every API scenario across
+  all 6 runs has its final captured request/response JSON pair.
+- **`TestDataRecord` lifecycle history** — all three states present:
+  `Cleaned` (real `AUTO`-owned Offenders, deleted through the real target
+  API via the React Test Data page, including one clicked individually
+  live and the rest through **Clean All Active**), `CleanupFailed`
+  (`LocationPoint` records, refused by design — see [Test data
+  lifecycle](#test-data-lifecycle-tm-06--step-7) — and one genuinely-owned
+  Offender whose National ID wasn't `AUTO`-prefixed, correctly refused by
+  the seed-safety guard), and the underlying rows are retained permanently
+  either way.
+- **Useful Dashboard data** — with `Run #5`/`#6` (both real, both clean)
+  as the latest, the Dashboard shows `Go`, a 6-point pass-rate trend, and
+  the 26 durably-`ExpectedFail` tests as "currently failing" (accurate —
+  they are still failing, just as a known, classified defect, not a
+  regression).
+
+**Evidence immutability was re-verified for this submission specifically**:
+one of `Run #1`'s screenshots was hashed (MD5), five more real runs then
+executed (`Run #2`–`#6`, including the Regression/Recovery pair and a
+live Stop), and the same artifact was re-fetched and re-hashed —
+byte-for-byte identical — then reopened successfully through the React UI.
+Original seeded OffenderWatch data (the 11 seed offenders and their
+trails) was confirmed unaffected before and after every real run and
+every cleanup performed for this submission.
+
+## Interview demo flow
+
+A suggested walkthrough of the live application (all of it was actually
+exercised, live, against real backend/API data, while preparing this
+submission):
+
+1. **Dashboard** (`/`) — the release decision banner, latest-run summary,
+   pass-rate trend, currently-failing tests.
+2. **Environments** (`/environments`) — add/edit/delete, the single-default
+   invariant.
+3. **Start a Run** (`/runs` → Start New Run) — creates and enqueues a Run,
+   returns immediately.
+4. **Watch it live** — scenarios transition `Queued → Running → final
+   status` on `/runs/:id` via SignalR, with zero manual refresh; the
+   connection indicator shows `Live`.
+5. **Stop a controlled Run** — click Stop mid-execution; the status flips
+   to `Stopped` live, completed scenarios stay final, the rest become
+   `Cancelled`.
+6. **Open Tests** (`/tests`) — every tracked TestCase, last status,
+   flaky indicator.
+7. **Show Regression/Recovery history** (`/tests/2`) — the real
+   transition sequence described above.
+8. **Open an older `ExpectedFail`/`Failed` scenario** from an early Run's
+   detail page.
+9. **Open its evidence** — screenshot/log for a UI scenario, or
+   request/response JSON for an API scenario.
+10. **Open Test Data** (`/test-data`) — the full explicit-ownership
+    lifecycle: `Active`/`Cleaned`/`CleanupFailed`.
+11. **Perform one safe owned cleanup** — click Clean on an `Active`,
+    `AUTO`-prefixed Offender row; watch it become `Cleaned` from the real
+    backend response.
+12. **Verify retention** — return to that record's owning Run; its
+    scenario history and evidence are untouched.
+13. **Run Comparison** (`/runs/compare`) — pick Run #4 (Base) → Run #5
+    (Compare): Regressions/Recoveries/New/Missing summary cards, the
+    totals delta, the different-environments warning, and the per-test
+    diff table.
+14. **Return to Dashboard** — confirm it still reads correctly after
+    everything above.
+15. **Mention Docker** — `docker compose up --build` from the repo root
+    brings up the same platform (API + client + SQLite) in two containers;
+    and mention the implemented bonuses: **B-01** (environment-aware
+    flakiness), **B-02** (Run Comparison, just shown), **B-05**
+    (one-command Docker startup), **B-06** (136 backend tests covering
+    TM-04/TM-06 and more) — see [Bonus features](#bonus-features) above.
+
+## Design tradeoffs
+
+A short, interview-ready list of the deliberate simplifications made and
+why, beyond what's already explained inline near each feature above:
+
+- **Sequential run execution, one worker.** pytest then Playwright, one
+  Run at a time, no concurrency. Simpler process ownership, simpler
+  cancellation, lower load on the shared demo app, and the assignment
+  explicitly doesn't require concurrent runs.
+- **Evidence on disk, metadata in SQLite** (not BLOBs) — keeps the
+  database small and evidence directly inspectable with any file browser;
+  the tradeoff is that the database and the `artifacts/` folder must be
+  shipped/restored together (both are committed for this reason).
+- **`LocationPoint` cleanup is refused, not faked.** The real target API
+  has no endpoint to delete one, and deleting the parent Offender doesn't
+  cascade to it either (a real defect this project discovered — see [Test
+  data lifecycle](#test-data-lifecycle-tm-06--step-7)). Rather than
+  silently no-op or call an endpoint that doesn't exist, the platform is
+  honest about the limitation.
+- **The overall Go/No-Go decision looks at the single most recent Run
+  platform-wide**, not per-Environment — the assignment's own wording
+  doesn't fully disambiguate multi-Environment aggregation for the one
+  top-level signal, and this is the simplest defensible reading (documented
+  explicitly in `PART5_PLAN.md`'s Step 8 section).
+- **No authentication, no scheduled runs, no run comparison, no
+  notifications** — all explicitly out of scope per the assignment's own
+  bonus/scope-boundary sections; the platform is deliberately not padded
+  with unrequested features.
+- **A lightweight hand-rolled SVG chart, not a charting library** — the
+  trend visualization is a handful of `<svg>` elements; adding a
+  dependency for one line chart wasn't justified.

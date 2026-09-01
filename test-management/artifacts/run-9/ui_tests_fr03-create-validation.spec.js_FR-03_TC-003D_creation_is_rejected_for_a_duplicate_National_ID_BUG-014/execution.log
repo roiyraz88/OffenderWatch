@@ -1,0 +1,45 @@
+test: FR-03 / TC-003D — creation is rejected for a duplicate National ID [BUG-014]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr03-create-validation.spec.js:71
+status: failed
+durationMs: 3066
+
+--- steps ---
+  - Before Hooks (287ms)
+  - Navigate to "" (655ms)
+  - Wait for selector locator('table.grid') (55ms)
+  - Wait for selector locator('.pager span').filter({ hasText: /\([1-9]\d* results\)/ }) (26ms)
+  - POST "/AQApplication/Roie/api/offenders" (323ms)
+  - Attach "ow-test-data-created" (1ms)
+  - Click locator('button.btn.primary').filter({ hasText: 'Add Offender' }) (45ms)
+  - Wait for selector locator('.modal-backdrop .modal') (14ms)
+  - Fill "Dup" locator('.modal-backdrop .modal').getByLabel('First name') (17ms)
+  - Fill "Licate" locator('.modal-backdrop .modal').getByLabel('Last name') (26ms)
+  - Fill "AUTO1788247491569" locator('.modal-backdrop .modal').getByLabel('National ID') (26ms)
+  - Fill "1990-01-01" locator('.modal-backdrop .modal').getByLabel('Date of birth') (22ms)
+  - Select option locator('.modal-backdrop .modal').getByLabel('Risk level') (17ms)
+  - Select option locator('.modal-backdrop .modal').getByLabel('Status') (14ms)
+  - Click locator('.modal-backdrop .modal').locator('button[type="submit"]') (36ms)
+  - Wait for timeout (627ms)
+  - Fill "Licate" locator('input.search') (23ms)
+  - Wait for timeout (416ms)
+  - Evaluate locator('table.grid tbody tr td.name-cell') (15ms)
+  - an offender with a duplicate National ID must not be persisted (2ms) [FAILED]
+  - GET "/AQApplication/Roie/api/offenders" (66ms)
+  - Attach "ow-test-data-created" (2ms)
+  - DELETE "/AQApplication/Roie/api/offenders/812" (86ms)
+  - Attach "ow-test-data-created" (1ms)
+  - DELETE "/AQApplication/Roie/api/offenders/831" (84ms)
+  - DELETE "/AQApplication/Roie/api/offenders/830" (82ms)
+  - After Hooks (198ms)
+  - Worker Cleanup (75ms)
+
+failureMessage: Error: an offender with a duplicate National ID must not be persisted
+
+--- stack trace ---
+Error: an offender with a duplicate National ID must not be persisted
+
+[2mexpect([22m[31mreceived[39m[2m).[22mnot[2m.[22mtoContain[2m([22m[32mexpected[39m[2m) // indexOf[22m
+
+Expected value: not [32m"Licate"[39m
+Received array:     [31m[[7m"Licate"[27m, "Licate"][39m
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr03-create-validation.spec.js:109:88

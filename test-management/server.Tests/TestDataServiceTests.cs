@@ -241,6 +241,59 @@ public class TestDataServiceTests : TestDatabaseFixture
     }
 
     [Fact]
+    public async Task CleanBatch_RecordsFromDifferentEnvironments_EachUsesItsOwnRunsBaseUrlSnapshot()
+    {
+        var runA = await SeedRunAsync("https://env-a.example/target");
+        var runB = await SeedRunAsync("https://env-b.example/target");
+        var recordA = await SeedRecordAsync(runA, externalId: "1", identifier: "AUTO111");
+        var recordB = await SeedRecordAsync(runB, externalId: "2", identifier: "AUTO222");
+
+        var factory = FakeHttpClientFactory.RespondingWith(HttpStatusCode.NoContent);
+        var sut = new TestDataService(Db, factory, NullLogger<TestDataService>.Instance);
+
+        await sut.CleanBatchAsync(new[] { recordA.Id, recordB.Id });
+
+        Assert.Equal(2, factory.Requests.Count);
+        var requestForA = factory.Requests.Single(r => r.RequestUri!.ToString().EndsWith("/1"));
+        var requestForB = factory.Requests.Single(r => r.RequestUri!.ToString().EndsWith("/2"));
+        Assert.StartsWith("https://env-a.example/target", requestForA.RequestUri!.ToString());
+        Assert.StartsWith("https://env-b.example/target", requestForB.RequestUri!.ToString());
+    }
+
+    [Fact]
+    public async Task CleanBatch_DuplicateTestDataRecordsForTheSameRealEntity_BothResolveSafely_NoUnsafeRepeatedDelete()
+    {
+        // Two TestDataRecord rows can legitimately point at the same real
+        // target-app entity (e.g. a historical duplicate, or two rows
+        // sharing an Identifier per the BUG-014 case) — cleaning both must
+        // never be treated as "delete this twice is fine to assume"; each
+        // call is independent and the target API's own response (204 then
+        // 404-confirmed-already-gone) is what decides the outcome, never an
+        // assumption made client-side.
+        var run = await SeedRunAsync();
+        var first = await SeedRecordAsync(run, externalId: "55", identifier: "AUTO555");
+        var second = await SeedRecordAsync(run, externalId: "55", identifier: "AUTO555");
+
+        var callCount = 0;
+        var factory = new FakeHttpClientFactory(_ =>
+        {
+            callCount++;
+            // First delete actually removes it; the second, redundant
+            // delete of the same real id is confirmed already-gone by 404.
+            return callCount == 1
+                ? new HttpResponseMessage(HttpStatusCode.NoContent)
+                : new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        var sut = new TestDataService(Db, factory, NullLogger<TestDataService>.Instance);
+
+        var results = await sut.CleanBatchAsync(new[] { first.Id, second.Id });
+
+        Assert.Equal(2, callCount); // each record's own DELETE call, never skipped or assumed
+        Assert.All(results, r => Assert.Equal("Cleaned", r.CleanupStatus));
+        Assert.All(results, r => Assert.NotNull(r.CleanedAtUtc));
+    }
+
+    [Fact]
     public async Task Cleanup_DoesNotTouchRunOrScenarioOrEvidenceHistory()
     {
         var run = await SeedRunAsync();

@@ -1,0 +1,45 @@
+test: FR-10 / TC-010E — signal outside 1-5 is rejected without saving a point [BUG-007 / BUG-018]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr10-location-validation.spec.js:18
+status: failed
+durationMs: 3365
+
+--- steps ---
+  - Before Hooks (212ms)
+  - POST "/AQApplication/Roie/api/offenders" (341ms)
+  - Attach "ow-test-data-created" (3ms)
+  - Navigate to "" (601ms)
+  - Wait for selector locator('table.grid') (42ms)
+  - Wait for selector locator('.pager span').filter({ hasText: /\([1-9]\d* results\)/ }) (42ms)
+  - Fill "Test47297" locator('input.search') (23ms)
+  - Wait for timeout (407ms)
+  - Click locator('table.grid tbody tr').filter({ hasText: 'Test47297' }).first() (50ms)
+  - Wait for selector locator('.trail-view') (13ms)
+  - Wait for selector locator('.trail-table-header') (12ms)
+  - Wait for timeout (509ms)
+  - Query count locator('.trail-view').locator('table.trail-grid tbody tr') (6ms)
+  - Click locator('.trail-view').locator('.trail-table-header button').filter({ hasText: 'Add location' }) (49ms)
+  - Wait for selector locator('form.loc-form') (10ms)
+  - Fill "32.08" locator('.trail-view').locator('form.loc-form').locator('input[placeholder="Latitude"]') (19ms)
+  - Fill "34.78" locator('.trail-view').locator('form.loc-form').locator('input[placeholder="Longitude"]') (25ms)
+  - Fill "10" locator('.trail-view').locator('form.loc-form').locator('input[placeholder="Speed km/h"]') (22ms)
+  - Fill "50" locator('.trail-view').locator('form.loc-form').locator('input[placeholder="Battery %"]') (22ms)
+  - Fill "6" locator('.trail-view').locator('form.loc-form').locator('input[placeholder="Signal 1-5"]') (25ms)
+  - Click locator('.trail-view').locator('form.loc-form').locator('button[type="submit"]') (55ms)
+  - Wait for timeout (615ms)
+  - Query count locator('.trail-view').locator('table.trail-grid tbody tr') (6ms)
+  - submitting an invalid location must not throw an unhandled client error (3ms) [FAILED]
+  - DELETE "/AQApplication/Roie/api/offenders/755" (77ms)
+  - After Hooks (234ms)
+  - Worker Cleanup (62ms)
+
+failureMessage: Error: submitting an invalid location must not throw an unhandled client error
+
+--- stack trace ---
+Error: submitting an invalid location must not throw an unhandled client error
+
+[2mexpect([22m[31mreceived[39m[2m).[22mtoHaveLength[2m([22m[32mexpected[39m[2m)[22m
+
+Expected length: [32m0[39m
+Received length: [31m1[39m
+Received array:  [31m[[RangeError: Invalid count value: -1]][39m
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr10-location-validation.spec.js:64:95

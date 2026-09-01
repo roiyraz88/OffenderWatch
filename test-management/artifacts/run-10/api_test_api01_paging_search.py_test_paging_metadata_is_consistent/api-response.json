@@ -1,0 +1,12 @@
+{
+  "statusCode": 200,
+  "headers": {
+    "Date": "Tue, 01 Sep 2026 08:51:38 GMT",
+    "Content-Type": "application/json; charset=utf-8",
+    "Transfer-Encoding": "chunked",
+    "Connection": "keep-alive",
+    "Server": "Microsoft-IIS/10.0",
+    "X-Powered-By": "ASP.NET"
+  },
+  "body": "{\"items\":[{\"id\":444,\"firstName\":\"Dup\",\"lastName\":\"Api\",\"nationalId\":\"305412876\",\"dateOfBirth\":\"1990-01-01\",\"riskLevel\":\"Low\",\"status\":\"Active\",\"createdAt\":\"2026-08-31T19:47:28.2579666Z\"},{\"id\":176,\"firstName\":\"A\",\"lastName\":\"B\",\"nationalId\":\"\",\"dateOfBirth\":\"2026-08-25\",\"riskLevel\":\"Low\",\"status\":\"Active\",\"createdAt\":\"2026-08-24T08:12:00.5212234Z\"},{\"id\":5,\"firstName\":\"Yosef\",\"lastName\":\"Biton\",\"nationalId\":\"309871234\",\"dateOfBirth\":\"1969-09-30\",\"riskLevel\":\"Low\",\"status\":\"Inactive\",\"createdAt\":\"2026-06-05T12:15:00.000Z\"},{\"id\":215,\"firstName\":\"David \",\"lastName\":\"Cohen\",\"nationalId\":\"305412876\",\"dateOfBirth\":\"2026-08-29\",\"riskLevel\":\"Low\",\"status\":\"Active\",\"createdAt\":\"2026-08-29T21:20:29.8633607Z\"},{\"id\":9,\"firstName\":\"Eli\",\"lastName\":\"Gabay\",\"nationalId\":\"308912345\",\"dateOfBirth\":\"1978-04-25\",\"riskLevel\":\"Low\",\"status\":\"Inactive\",\"createdAt\":\"2026-06-09T16:15:00.000Z\"}],\"total\":12,\"page\":1,\"pageSize\":5,\"totalPages\":2}"
+}

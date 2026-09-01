@@ -1,0 +1,33 @@
+nodeid: test_api03_validation.py::test_create_offender_rejects_unsupported_risk_level
+status: failed
+durationMs: 161
+
+failureMessage: test_api03_validation.py:114: AssertionError
+
+--- stack trace ---
+session = <requests.sessions.Session object at 0x0000025293D5A810>
+base_url = 'https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie'
+unique_national_id = 'AUTO1788253425289'
+
+    @pytest.mark.known_bug
+    def test_create_offender_rejects_unsupported_risk_level(session, base_url, unique_national_id):
+        """Known defect: unsupported enum values are accepted (part of BUG-008)."""
+        payload = {
+            "firstName": "Bad",
+            "lastName": "Enum",
+            "nationalId": unique_national_id,
+            "dateOfBirth": "1990-01-01",
+            "riskLevel": "Extreme",
+            "status": "Active",
+        }
+        resp = session.post(f"{base_url}/api/offenders", json=payload)
+        created_id = resp.json().get("id") if resp.ok else None
+        try:
+>           assert resp.status_code == 400, (
+                f"expected 400 for unsupported riskLevel, got {resp.status_code}: {resp.text[:200]}"
+            )
+E           AssertionError: expected 400 for unsupported riskLevel, got 201: {"id":866,"firstName":"Bad","lastName":"Enum","nationalId":"AUTO1788253425289","dateOfBirth":"1990-01-01","riskLevel":"Extreme","status":"Active","createdAt":"2026-09-01T09:03:45.5819392Z"}
+E           assert 201 == 400
+E            +  where 201 = <Response [201]>.status_code
+
+test_api03_validation.py:114: AssertionError

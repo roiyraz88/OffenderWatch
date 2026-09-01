@@ -1,0 +1,20 @@
+test: FR-04 / TC-004B — editing Risk Level only leaves other fields unchanged [BUG-017]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr04-edit-persistence.spec.js:12
+status: failed
+durationMs: 45106
+
+--- steps ---
+  - Before Hooks (215ms)
+  - POST "/api/offenders" (13ms)
+  - Navigate to "" (33ms)
+  - Wait for selector locator('table.grid') (44937ms) [FAILED]
+  - After Hooks (106ms)
+  - Worker Cleanup (46ms)
+
+failureMessage: [31mTest timeout of 45000ms exceeded.[39m
+
+--- stack trace ---
+[31mTest timeout of 45000ms exceeded.[39m
+---
+Error: apiRequestContext.delete: Target page, context or browser has been closed
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr04-edit-persistence.spec.js:56:25

@@ -1,0 +1,49 @@
+test: FR-04 / TC-004B — editing Risk Level only leaves other fields unchanged [BUG-017]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr04-edit-persistence.spec.js:12
+status: failed
+durationMs: 8227
+
+--- steps ---
+  - Before Hooks (271ms)
+  - POST "/AQApplication/Roie/api/offenders" (314ms)
+  - Navigate to "" (646ms)
+  - Wait for selector locator('table.grid') (47ms)
+  - Wait for selector locator('.pager span').filter({ hasText: /\([1-9]\d* results\)/ }) (39ms)
+  - Fill "Persist18841" locator('input.search') (25ms)
+  - Wait for timeout (418ms)
+  - Click locator('table.grid tbody tr').filter({ hasText: 'Persist18841' }).first().locator('button.btn.small').first() (54ms)
+  - Wait for selector locator('.modal-backdrop .modal') (14ms)
+  - Select option locator('.modal-backdrop .modal').getByLabel('Risk level') (14ms)
+  - Click locator('.modal-backdrop .modal').locator('button[type="submit"]') (31ms)
+  - Wait for timeout (605ms)
+  - Fill "Persist18841" locator('input.search') (17ms)
+  - Wait for timeout (420ms)
+  - Click locator('table.grid tbody tr').filter({ hasText: 'Persist18841' }).first().locator('button.btn.small').first() (52ms)
+  - Wait for selector locator('.modal-backdrop .modal') (19ms)
+  - Expect "toHaveValue" locator('.modal-backdrop .modal').getByLabel('First name') (15ms)
+  - Expect "toHaveValue" locator('.modal-backdrop .modal').getByLabel('Last name') (8ms)
+  - Expect "toHaveValue" locator('.modal-backdrop .modal').getByLabel('National ID') (10ms)
+  - Expect "toHaveValue" locator('.modal-backdrop .modal').getByLabel('Date of birth') (8ms)
+  - Expect "toHaveValue" locator('.modal-backdrop .modal').getByLabel('Status') (8ms)
+  - Expect "toHaveValue" locator('.modal-backdrop .modal').getByLabel('Risk level') (5018ms) [FAILED]
+  - DELETE "/AQApplication/Roie/api/offenders/689" (78ms)
+  - After Hooks (147ms)
+  - Worker Cleanup (52ms)
+
+failureMessage: Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveValue[2m([22m[32mexpected[39m[2m)[22m failed
+
+--- stack trace ---
+Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveValue[2m([22m[32mexpected[39m[2m)[22m failed
+
+Locator:  locator('.modal-backdrop .modal').getByLabel('Risk level')
+Expected: [32m"High"[39m
+Received: [31m"Low"[39m
+Timeout:  5000ms
+
+Call log:
+[2m  - Expect "toHaveValue" with timeout 5000ms[22m
+[2m  - waiting for locator('.modal-backdrop .modal').getByLabel('Risk level')[22m
+[2m    14 × locator resolved to <select>…</select>[22m
+[2m       - unexpected value "Low"[22m
+
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr04-edit-persistence.spec.js:54:35

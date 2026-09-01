@@ -1,0 +1,23 @@
+test: FR-03 / TC-003A — create offender with fully valid data succeeds
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr03-create-validation.spec.js:12
+status: failed
+durationMs: 45092
+
+--- steps ---
+  - Before Hooks (223ms)
+  - Navigate to "" (35ms)
+  - Wait for selector locator('table.grid') (44935ms) [FAILED]
+  - After Hooks (99ms)
+  - Worker Cleanup (50ms)
+
+failureMessage: [31mTest timeout of 45000ms exceeded.[39m
+
+--- stack trace ---
+[31mTest timeout of 45000ms exceeded.[39m
+---
+Error: page.waitForSelector: Test timeout of 45000ms exceeded.
+Call log:
+[2m  - waiting for locator('table.grid') to be visible[22m
+
+    at OffenderListPage.goto (C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\pages\OffenderListPage.js:17:21)
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr03-create-validation.spec.js:14:3

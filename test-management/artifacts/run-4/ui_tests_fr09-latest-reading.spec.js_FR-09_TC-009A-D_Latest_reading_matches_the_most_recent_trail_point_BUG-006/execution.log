@@ -1,0 +1,23 @@
+test: FR-09 / TC-009A-D — Latest reading matches the most recent trail point [BUG-006]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr09-latest-reading.spec.js:16
+status: failed
+durationMs: 45095
+
+--- steps ---
+  - Before Hooks (219ms)
+  - POST "/api/offenders" (13ms)
+  - POST "/api/offenders/undefined/locations" (4ms)
+  - POST "/api/offenders/undefined/locations" (5ms)
+  - POST "/api/offenders/undefined/locations" (3ms)
+  - Navigate to "" (40ms)
+  - Wait for selector locator('table.grid') (44897ms) [FAILED]
+  - After Hooks (102ms)
+  - Worker Cleanup (43ms)
+
+failureMessage: [31mTest timeout of 45000ms exceeded.[39m
+
+--- stack trace ---
+[31mTest timeout of 45000ms exceeded.[39m
+---
+Error: apiRequestContext.delete: Target page, context or browser has been closed
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr09-latest-reading.spec.js:62:25

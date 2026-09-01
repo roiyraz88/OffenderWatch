@@ -1,0 +1,23 @@
+test: FR-07 / TC-007A — trail table is ordered oldest to newest [BUG-005]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr07-trail-chronological.spec.js:12
+status: failed
+durationMs: 45108
+
+--- steps ---
+  - Before Hooks (226ms)
+  - POST "/api/offenders" (14ms)
+  - POST "/api/offenders/undefined/locations" (4ms)
+  - POST "/api/offenders/undefined/locations" (3ms)
+  - POST "/api/offenders/undefined/locations" (4ms)
+  - Navigate to "" (41ms)
+  - Wait for selector locator('table.grid') (44905ms) [FAILED]
+  - After Hooks (116ms)
+  - Worker Cleanup (47ms)
+
+failureMessage: [31mTest timeout of 45000ms exceeded.[39m
+
+--- stack trace ---
+[31mTest timeout of 45000ms exceeded.[39m
+---
+Error: apiRequestContext.delete: Target page, context or browser has been closed
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr07-trail-chronological.spec.js:36:25

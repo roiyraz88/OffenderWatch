@@ -1,0 +1,3 @@
+nodeid: test_api05_stats.py::test_stats_active_offender_total_is_correct
+status: passed
+durationMs: 132

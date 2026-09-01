@@ -1,0 +1,31 @@
+nodeid: test_api01_paging_search.py::test_search_is_case_insensitive
+status: failed
+durationMs: 257
+
+failureMessage: test_api01_paging_search.py:76: AssertionError
+
+--- stack trace ---
+session = <requests.sessions.Session object at 0x0000020340CE4B50>
+base_url = 'https://svcdemoaz.puremonitor.supercom.com/AQApplication/Roie'
+
+    def test_search_is_case_insensitive(session, base_url):
+        """FR-02 / API-01 — search must be case-insensitive.
+        Known defect: BUG-013. Verified directly at the API: a lowercase
+        substring returns 0 results while the same substring capitalized matches.
+        """
+        offender = _pick_live_offender(session, base_url)
+        substring = offender["lastName"][: max(3, len(offender["lastName"]) // 2)]
+    
+        lower = session.get(f"{base_url}/api/offenders", params={"search": substring.lower(), "pageSize": 25}).json()
+        upper = session.get(f"{base_url}/api/offenders", params={"search": substring.upper(), "pageSize": 25}).json()
+        mixed = session.get(f"{base_url}/api/offenders", params={"search": substring, "pageSize": 25}).json()
+    
+        assert mixed["total"] >= 1, f"sanity check failed: searching '{substring}' itself found nothing"
+>       assert lower["total"] == mixed["total"], (
+            f"case-insensitive search should return equal results regardless of casing; "
+            f"got lower={lower['total']} vs mixed={mixed['total']}"
+        )
+E       AssertionError: case-insensitive search should return equal results regardless of casing; got lower=0 vs mixed=1
+E       assert 0 == 1
+
+test_api01_paging_search.py:76: AssertionError

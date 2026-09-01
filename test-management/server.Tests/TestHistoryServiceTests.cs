@@ -14,11 +14,11 @@ public class TestHistoryServiceTests : TestDatabaseFixture
         _sut = new TestHistoryService(Db);
     }
 
-    private async Task<TestRun> SeedRunAsync(DateTime createdAtUtc)
+    private async Task<TestRun> SeedRunAsync(DateTime createdAtUtc, string environmentNameSnapshot = "Dev")
     {
         var run = new TestRun
         {
-            EnvironmentNameSnapshot = "Dev",
+            EnvironmentNameSnapshot = environmentNameSnapshot,
             BaseUrlSnapshot = "https://example.com",
             Status = RunStatus.Completed,
             Trigger = RunTrigger.Manual,
@@ -137,5 +137,88 @@ public class TestHistoryServiceTests : TestDatabaseFixture
     public async Task GetHistoryAsync_UnknownTestCase_ThrowsNotFound()
     {
         await Assert.ThrowsAsync<TestCaseNotFoundException>(() => _sut.GetHistoryAsync(999));
+    }
+
+    // ---- Environment-aware flakiness ---------------------------------
+
+    [Fact]
+    public async Task Flakiness_SameTestSameEnvironment_MultipleSwitches_IsFlaky()
+    {
+        var testCase = await SeedTestCaseAsync("api::flaky_same_env");
+        var t0 = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var run1 = await SeedRunAsync(t0, "Roie (Live Demo)");
+        var run2 = await SeedRunAsync(t0.AddHours(1), "Roie (Live Demo)");
+        var run3 = await SeedRunAsync(t0.AddHours(2), "Roie (Live Demo)");
+
+        await SeedResultAsync(run1, testCase, ScenarioStatus.Passed, t0);
+        await SeedResultAsync(run2, testCase, ScenarioStatus.Failed, t0.AddHours(1));
+        await SeedResultAsync(run3, testCase, ScenarioStatus.Passed, t0.AddHours(2));
+
+        var detail = await _sut.GetHistoryAsync(testCase.Id);
+
+        Assert.True(detail.IsFlaky);
+    }
+
+    [Fact]
+    public async Task Flakiness_SameTestDifferentEnvironments_NoSwitchWithinEitherEnvironment_IsNotFlaky()
+    {
+        // Reproduces the reported scenario exactly: a real Pass streak on
+        // the real target, with a single real Fail recorded only because a
+        // different (controlled) Environment was used once in between for a
+        // Regression/Recovery demonstration. Neither Environment's own
+        // history alternates on its own.
+        var testCase = await SeedTestCaseAsync("api::not_flaky_cross_env");
+        var t0 = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var run1 = await SeedRunAsync(t0, "Roie (Live Demo)");
+        var run2 = await SeedRunAsync(t0.AddHours(1), "Roie (Live Demo)");
+        var run3 = await SeedRunAsync(t0.AddHours(2), "Roie (Live Demo)");
+        var run4 = await SeedRunAsync(t0.AddHours(3), "Local Regression Demo Target (not the real app)");
+        var run5 = await SeedRunAsync(t0.AddHours(4), "Roie (Live Demo)");
+        var run6 = await SeedRunAsync(t0.AddHours(5), "Roie (Live Demo)");
+
+        await SeedResultAsync(run1, testCase, ScenarioStatus.Passed, t0);
+        await SeedResultAsync(run2, testCase, ScenarioStatus.Passed, t0.AddHours(1));
+        await SeedResultAsync(run3, testCase, ScenarioStatus.Passed, t0.AddHours(2));
+        await SeedResultAsync(run4, testCase, ScenarioStatus.Failed, t0.AddHours(3)); // Regression, controlled Environment
+        await SeedResultAsync(run5, testCase, ScenarioStatus.Passed, t0.AddHours(4)); // Recovery, real Environment
+        await SeedResultAsync(run6, testCase, ScenarioStatus.Passed, t0.AddHours(5));
+
+        var detail = await _sut.GetHistoryAsync(testCase.Id);
+
+        // The transitions themselves stay cross-environment and unchanged —
+        // Run #4's Regression and Run #5's Recovery must still be visible.
+        Assert.Equal(
+            new[] { "FirstResult", "StillPassing", "StillPassing", "Regression", "Recovery", "StillPassing" },
+            detail.History.Select(h => h.Transition));
+
+        // But flakiness is scoped to the latest execution's own Environment
+        // (Roie) — whose own results (Passed, Passed, Passed, Passed,
+        // Passed — run4 excluded) never alternate at all.
+        Assert.False(detail.IsFlaky);
+    }
+
+    [Fact]
+    public async Task Flakiness_SkippedAndCancelled_RemainNeutral_AcrossEnvironmentFiltering()
+    {
+        var testCase = await SeedTestCaseAsync("api::flaky_neutral_check");
+        var t0 = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var run1 = await SeedRunAsync(t0, "Roie (Live Demo)");
+        var run2 = await SeedRunAsync(t0.AddHours(1), "Roie (Live Demo)");
+        var run3 = await SeedRunAsync(t0.AddHours(2), "Roie (Live Demo)");
+        var run4 = await SeedRunAsync(t0.AddHours(3), "Roie (Live Demo)");
+
+        await SeedResultAsync(run1, testCase, ScenarioStatus.Passed, t0);
+        await SeedResultAsync(run2, testCase, ScenarioStatus.Skipped, t0.AddHours(1));
+        await SeedResultAsync(run3, testCase, ScenarioStatus.Cancelled, t0.AddHours(2));
+        await SeedResultAsync(run4, testCase, ScenarioStatus.Passed, t0.AddHours(3));
+
+        var detail = await _sut.GetHistoryAsync(testCase.Id);
+
+        // Comparable sequence within the one environment is Passed, Passed —
+        // zero switches — Skipped/Cancelled never counted either way.
+        Assert.False(detail.IsFlaky);
     }
 }

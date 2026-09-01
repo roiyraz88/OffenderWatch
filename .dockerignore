@@ -1,0 +1,21 @@
+# Bonus B-05 — Docker build context excludes for the backend image (build
+# context is the repo root, since RunOrchestrator needs automation/ as a
+# sibling of test-management/server/ — see docker-compose.yml).
+#
+# Never bake the real SQLite DB or evidence artifacts into an image layer —
+# both are bind-mounted at runtime instead (docker-compose.yml).
+
+.git/
+**/bin/
+**/obj/
+**/node_modules/
+test-management/client/dist/
+test-management/data/
+test-management/artifacts/
+automation/api/__pycache__/
+automation/api/.pytest_cache/
+automation/api/results/
+automation/ui/test-results/
+automation/ui/playwright-report/
+automation/ui/results/
+**/*.pyc

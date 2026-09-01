@@ -1,0 +1,40 @@
+test: FR-03 / TC-003E — creation is rejected for a future Date of Birth [BUG-003]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr03-create-validation.spec.js:121
+status: failed
+durationMs: 2862
+
+--- steps ---
+  - Before Hooks (241ms)
+  - Navigate to "" (618ms)
+  - Wait for selector locator('table.grid') (44ms)
+  - Wait for selector locator('.pager span').filter({ hasText: /\([1-9]\d* results\)/ }) (40ms)
+  - Click locator('button.btn.primary').filter({ hasText: 'Add Offender' }) (70ms)
+  - Wait for selector locator('.modal-backdrop .modal') (13ms)
+  - Fill "Future" locator('.modal-backdrop .modal').getByLabel('First name') (16ms)
+  - Fill "Future83735" locator('.modal-backdrop .modal').getByLabel('Last name') (19ms)
+  - Fill "AUTO1788254683822" locator('.modal-backdrop .modal').getByLabel('National ID') (26ms)
+  - Fill "2099-01-01" locator('.modal-backdrop .modal').getByLabel('Date of birth') (16ms)
+  - Select option locator('.modal-backdrop .modal').getByLabel('Risk level') (16ms)
+  - Select option locator('.modal-backdrop .modal').getByLabel('Status') (18ms)
+  - Click locator('.modal-backdrop .modal').locator('button[type="submit"]') (45ms)
+  - Wait for timeout (611ms)
+  - Fill "Future83735" locator('input.search') (17ms)
+  - Wait for timeout (415ms)
+  - Evaluate locator('table.grid tbody tr td.name-cell') (9ms)
+  - an offender with a future DOB must not be persisted (2ms) [FAILED]
+  - GET "/AQApplication/api/offenders" (310ms)
+  - Attach "ow-test-data-created" (5ms)
+  - DELETE "/AQApplication/api/offenders/884" (88ms)
+  - After Hooks (300ms)
+  - Worker Cleanup (60ms)
+
+failureMessage: Error: an offender with a future DOB must not be persisted
+
+--- stack trace ---
+Error: an offender with a future DOB must not be persisted
+
+[2mexpect([22m[31mreceived[39m[2m).[22mnot[2m.[22mtoContain[2m([22m[32mexpected[39m[2m) // indexOf[22m
+
+Expected value: not [32m"Future83735"[39m
+Received array:     [31m[[7m"Future83735"[27m][39m
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr03-create-validation.spec.js:141:77

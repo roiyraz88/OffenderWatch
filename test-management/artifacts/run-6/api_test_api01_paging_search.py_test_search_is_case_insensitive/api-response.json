@@ -1,0 +1,12 @@
+{
+  "statusCode": 200,
+  "headers": {
+    "Date": "Mon, 31 Aug 2026 22:14:43 GMT",
+    "Content-Type": "application/json; charset=utf-8",
+    "Transfer-Encoding": "chunked",
+    "Connection": "keep-alive",
+    "Server": "Microsoft-IIS/10.0",
+    "X-Powered-By": "ASP.NET"
+  },
+  "body": "{\"items\":[{\"id\":444,\"firstName\":\"Dup\",\"lastName\":\"Api\",\"nationalId\":\"305412876\",\"dateOfBirth\":\"1990-01-01\",\"riskLevel\":\"Low\",\"status\":\"Active\",\"createdAt\":\"2026-08-31T19:47:28.2579666Z\"}],\"total\":1,\"page\":1,\"pageSize\":25,\"totalPages\":1}"
+}

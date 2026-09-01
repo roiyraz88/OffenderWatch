@@ -1,0 +1,23 @@
+test: FR-11 / TC-011A — UI top-bar totals match GET /api/stats [BUG-011]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr11-dashboard-stats.spec.js:7
+status: failed
+durationMs: 45091
+
+--- steps ---
+  - Before Hooks (239ms)
+  - Navigate to "" (39ms)
+  - Wait for selector locator('table.grid') (44920ms) [FAILED]
+  - After Hooks (97ms)
+  - Worker Cleanup (48ms)
+
+failureMessage: [31mTest timeout of 45000ms exceeded.[39m
+
+--- stack trace ---
+[31mTest timeout of 45000ms exceeded.[39m
+---
+Error: page.waitForSelector: Test timeout of 45000ms exceeded.
+Call log:
+[2m  - waiting for locator('table.grid') to be visible[22m
+
+    at OffenderListPage.goto (C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\pages\OffenderListPage.js:17:21)
+    at C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr11-dashboard-stats.spec.js:9:3

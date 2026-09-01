@@ -1,0 +1,18 @@
+test: FR-11 / TC-011A — UI top-bar totals match GET /api/stats [BUG-011]
+location: C:\Users\roiyr\OneDrive\Desktop\supercom home assignment\automation\ui\tests\fr11-dashboard-stats.spec.js:7
+status: passed
+durationMs: 1354
+
+--- steps ---
+  - Before Hooks (342ms)
+  - Navigate to "" (655ms)
+  - Wait for selector locator('table.grid') (68ms)
+  - Wait for selector locator('.pager span').filter({ hasText: /\([1-9]\d* results\)/ }) (32ms)
+  - Wait for selector locator('.stats .stat b').first() (12ms)
+  - Evaluate locator('.stats .stat b') (14ms)
+  - GET "/AQApplication/api/stats" (315ms)
+  - Expect "toBeTruthy" (0ms)
+  - UI offender total should match API totalOffenders (1ms)
+  - UI active total should match API activeOffenders (0ms)
+  - UI trail-point total should match API totalLocationPoints (0ms)
+  - After Hooks (74ms)
